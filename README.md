@@ -14,14 +14,14 @@ nix run . -- --check questions/   # validate the question files
 nix run . -- --help               # timing and title flags
 ```
 
-## Deploying on quiz.lassul.us
+## Deploying on quiz.nixos.org
 
 ```nix
 {
   imports = [ nixcon-quiz.nixosModules.default ];
   services.nixcon-quiz = {
     enable = true;
-    domain = "quiz.lassul.us";  # nginx vhost + ACME, event stream unbuffered
+    domain = "quiz.nixos.org";  # nginx vhost + ACME, event stream unbuffered
     # questions = "/var/lib/nixcon-quiz/questions";  # the default, see below
     questionSeconds = 20;       # time to answer
     revealSeconds = 8;          # right answer on screen
@@ -154,7 +154,7 @@ red is only for what went wrong. Fonts and images are vendored under
 
 ## Livestream
 
-Open `/spectate` (e.g. https://quiz.lassul.us/spectate) in OBS as a browser
+Open `/spectate` (e.g. https://quiz.nixos.org/spectate) in OBS as a browser
 source at 1920×1080, or on a projector. It shows the same questions, timer,
 reveal and leaderboard as the players, sized for 16:9 at any resolution, plus
 a live count of answers and, along the bottom, a QR code, the address and how
