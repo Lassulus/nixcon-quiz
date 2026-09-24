@@ -497,6 +497,40 @@ footer {
   font-size: 0.78rem;
 }
 
+/* On phones and tablets the choices are what you tap and read at arm's
+   length: taller rows and bigger type throughout. */
+@media (pointer: coarse), (max-width: 40rem) {
+  body:not(.spectate) .question {
+    font-size: clamp(1.4rem, 6.2vw, 1.9rem);
+  }
+
+  body:not(.spectate) .choices {
+    gap: 0.8rem;
+  }
+
+  body:not(.spectate) .choice {
+    min-height: 4.6rem;
+    font-size: 1.3rem;
+  }
+
+  body:not(.spectate) .letter {
+    width: 3.3rem;
+  }
+
+  body:not(.spectate) .text {
+    padding: 0.9rem 1rem;
+  }
+
+  body:not(.spectate) .status,
+  body:not(.spectate) .countdown:not(.big) {
+    font-size: 1rem;
+  }
+
+  body:not(.spectate) .explanation {
+    font-size: 1.1rem;
+  }
+}
+
 /* Spectator screen for the livestream: fills a 16:9 frame at any resolution,
    so everything is sized from the viewport. 1920x1080 gives 24px. */
 html:has(body.spectate) {
