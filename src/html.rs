@@ -125,7 +125,7 @@ pub fn game(view: &View) -> Markup {
         div.view data-now=(view.now) data-phase=(phase_name(&view.phase)) {
             header {
                 div.brand {
-                    (snowflake())
+                    (logo())
                     h1 { (view.title) }
                 }
                 div #me {
@@ -192,7 +192,7 @@ pub fn spectate_game(view: &View, tally: Tally) -> Markup {
         div.view data-now=(view.now) data-phase=(phase_name(&view.phase)) {
             header {
                 div.brand {
-                    (snowflake())
+                    (logo())
                     h1 { (view.title) }
                 }
                 span #tally sse-swap="tally" { (tally_text(tally, &view.phase)) }
@@ -311,21 +311,10 @@ fn qr(url: &str) -> Markup {
     }
 }
 
-/// The NixOS lambda snowflake, from nixos-artwork (CC-BY 4.0), with flat
-/// colours instead of gradients.
-fn snowflake() -> Markup {
-    const LAMBDA: &str = "m -97.76,5.41 122.19683,211.67512 -56.15706,0.5268 -32.6236,-56.8692 \
-        -32.85645,56.5653 -27.90237,-0.011 -14.29086,-24.6896 46.81047,-80.4901 -33.22946,-57.8257 z";
+/// The NixCon 2026 eagle from 2026.nixcon.org.
+fn logo() -> Markup {
     html! {
-        svg.snowflake viewBox="-250 -250 500 500" aria-hidden="true" {
-            defs { path #lambda d=(LAMBDA) {} }
-            @for angle in [60, 180, 300] {
-                use href="#lambda" fill="#7ebae4" transform={ "rotate(" (angle) ")" } {}
-            }
-            @for angle in [0, 120, 240] {
-                use href="#lambda" fill="#5277c3" transform={ "rotate(" (angle) ")" } {}
-            }
-        }
+        img.logo src="/vendor/nixcon-2026-icon.svg" alt="";
     }
 }
 

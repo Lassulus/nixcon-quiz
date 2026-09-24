@@ -1,5 +1,7 @@
-/* A build plan on drafting paper: Nix blue ink and grid, one typeface,
-   square corners, hairlines, and red only for what failed. */
+/* NixCon 2026 in pixels, like 2026.nixcon.org: sky blue with clouds, a dark
+   bar on top, Press Start 2P for the game's labels and numbers, boxes with
+   black pixel borders and notched corners, gold for the right answer and red
+   for what went wrong. Questions and answers stay in a readable monospace. */
 
 @font-face {
   font-family: "Plex Mono";
@@ -41,16 +43,55 @@
     U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
+@font-face {
+  font-family: "Press Start 2P";
+  font-weight: 400;
+  font-display: swap;
+  src: url(/vendor/press-start-2p-latin-400-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Press Start 2P";
+  font-weight: 400;
+  font-display: swap;
+  src: url(/vendor/press-start-2p-latin-ext-400-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
-  --paper: #f2efe6;
-  --sheet: #fbfaf6;
-  --ink: #1c2742;
-  --ink-soft: #5b6680;
-  --rule: rgb(28 39 66 / 0.18);
-  --nix-dark: #5277c3;
-  --nix-light: #7ebae4;
-  --red: #c4402b;
-  --line: 1.5px;
+  --sky: #b5e2f7;
+  --sheet: #f4fbfe;
+  --ink: #2f2f2f;
+  --ink-soft: #4b5a66;
+  --rule: rgb(47 47 47 / 0.22);
+  --accent: #5e6cc7;
+  --heading: #065d9e;
+  --gold: #ffd447;
+  --panel: #38667f;
+  --panel-light: #64879b;
+  --red: #e70000;
+  /* One pixel of the pixel art: borders, and the corners cut off boxes. */
+  --px: 3px;
+  --notch: polygon(
+    var(--px) 0,
+    calc(100% - var(--px)) 0,
+    calc(100% - var(--px)) var(--px),
+    100% var(--px),
+    100% calc(100% - var(--px)),
+    calc(100% - var(--px)) calc(100% - var(--px)),
+    calc(100% - var(--px)) 100%,
+    var(--px) 100%,
+    var(--px) calc(100% - var(--px)),
+    0 calc(100% - var(--px)),
+    0 var(--px),
+    var(--px) var(--px)
+  );
+  --pixel-font: "Press Start 2P", "Plex Mono", monospace;
   font-family: "Plex Mono", ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
   /* Everything is sized in rem, so this scales the whole page: 16px on
      phones, growing with the smaller of width and height on big screens
@@ -58,36 +99,50 @@
   font-size: clamp(16px, min(1.5vw, 2.3vh), 30px);
   line-height: 1.45;
   color: var(--ink);
-  background: var(--paper);
+  background: var(--sky);
 }
 
 * {
   box-sizing: border-box;
 }
 
-/* Graph paper: a 4 mm grid with a heavier line every 5 squares. */
 body {
   margin: 0;
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(rgb(82 119 195 / 0.16) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(82 119 195 / 0.16) 1px, transparent 1px),
-    linear-gradient(rgb(82 119 195 / 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(82 119 195 / 0.07) 1px, transparent 1px);
-  background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
-  background-position: -1px -1px;
+}
+
+/* Two pixel clouds drifting at the edges of the sky, faded so text on top
+   of them stays readable. Phones have no room to spare for them. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    url(/vendor/nixcon-2026-cloud.png) left -4rem top 7rem / 18rem auto no-repeat,
+    url(/vendor/nixcon-2026-cloud.png) right -5rem bottom 4rem / 22rem auto no-repeat;
+  image-rendering: pixelated;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+@media (max-width: 40rem) {
+  body::before {
+    display: none;
+  }
 }
 
 ::selection {
-  background: var(--nix-light);
+  background: var(--ink);
+  color: #fff;
 }
 
+/* The header spans the page like the conference site's; everything below
+   stays in a column. */
 .view {
   min-height: 100dvh;
-  max-width: 46rem;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
+  --gutter: max(1rem, (100% - 44rem) / 2);
 }
 
 header {
@@ -95,27 +150,31 @@ header {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1rem 0.85rem;
-  border-bottom: 2px solid var(--ink);
+  padding: 0.75rem var(--gutter);
+  border-bottom: 4px solid #606fce;
+  background: var(--ink);
+  color: #fff;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
-.snowflake {
+.logo {
   flex: none;
-  width: 2.1rem;
-  height: 2.1rem;
+  width: auto;
+  height: 2.4rem;
 }
 
 h1 {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.2;
+  font-family: var(--pixel-font);
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 #me {
@@ -132,45 +191,41 @@ h1 {
 }
 
 #standing {
-  color: var(--ink-soft);
+  color: var(--sky);
   font-variant-numeric: tabular-nums;
 }
 
-/* The clock is a ruler that runs out. */
+/* The clock is a health bar that runs out, block by block. */
 #timer {
   position: relative;
-  height: 0.875rem;
-  margin: 0 1rem;
-  border-right: 1px solid var(--ink);
-  background:
-    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 5%) bottom / 100% 0.3rem
-      no-repeat,
-    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 25%) bottom / 100%
-      0.625rem no-repeat;
+  height: 1rem;
+  margin: 1rem var(--gutter) 0;
+  border: var(--px) solid var(--ink);
+  background: var(--sheet);
 }
 
 #bar {
   position: absolute;
   top: 0;
   left: 0;
-  height: 0.3rem;
+  height: 100%;
   width: 0;
-  background: var(--nix-dark);
+  background: repeating-linear-gradient(90deg, var(--accent) 0 0.8rem, transparent 0.8rem 1rem);
   transition: width 0.2s linear;
 }
 
 #bar.hurry {
-  background: var(--red);
+  background: repeating-linear-gradient(90deg, var(--red) 0 0.8rem, transparent 0.8rem 1rem);
 }
 
 main {
   flex: 1;
-  padding: 1.5rem 1rem 1rem;
+  padding: 1.5rem var(--gutter) 1rem;
 }
 
 .label {
   margin: 0;
-  color: var(--nix-dark);
+  color: var(--heading);
   font-size: 0.78rem;
   overflow-wrap: anywhere;
 }
@@ -187,7 +242,7 @@ main {
    out 2x2. */
 .choices {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.7rem;
   /* Also the answer form's fieldset. */
   min-width: 0;
   margin: 0;
@@ -195,13 +250,17 @@ main {
   border: 0;
 }
 
+/* A pixel button: black border with the corners cut off and a shaded
+   ledge along the bottom. */
 .choice {
   position: relative;
   display: flex;
   align-items: stretch;
   min-height: 3.4rem;
-  border: var(--line) solid var(--ink);
+  border: var(--px) solid var(--ink);
   background: var(--sheet);
+  box-shadow: inset 0 -0.3rem 0 rgb(47 47 47 / 0.14);
+  clip-path: var(--notch);
   color: var(--ink);
   font-size: 1rem;
   overflow: hidden;
@@ -212,8 +271,9 @@ main {
   display: grid;
   place-items: center;
   width: 2.6rem;
-  border-right: var(--line) solid currentColor;
-  font-weight: 600;
+  border-right: var(--px) solid currentColor;
+  font-family: var(--pixel-font);
+  font-size: 0.85em;
   z-index: 1;
 }
 
@@ -241,23 +301,24 @@ label.choice:hover {
 }
 
 label.choice:active {
-  translate: 1px 1px;
+  translate: 0 2px;
+  box-shadow: none;
 }
 
+/* Inside the box: the notched corners clip anything drawn outside it. */
 label.choice:has(:focus-visible) {
-  outline: 2px dashed var(--nix-dark);
-  outline-offset: 3px;
+  outline: 2px dashed currentColor;
+  outline-offset: -0.45rem;
 }
 
 label.choice:has(:checked) {
-  border-color: var(--nix-dark);
-  background: var(--nix-dark);
+  background: var(--accent);
+  box-shadow: inset 0 -0.3rem 0 rgb(0 0 0 / 0.22);
   color: #fff;
 }
 
 .choices:has(:checked) label.choice:not(:has(:checked)) {
   color: var(--ink-soft);
-  border-color: var(--ink-soft);
 }
 
 .choices:disabled label.choice {
@@ -308,8 +369,8 @@ label.choice:has(:checked) {
 .countdown.big {
   margin-top: 0.25rem;
   color: var(--ink);
-  font-size: 2.6rem;
-  font-weight: 600;
+  font-family: var(--pixel-font);
+  font-size: 2rem;
   line-height: 1;
   text-align: right;
 }
@@ -318,13 +379,14 @@ label.choice:has(:checked) {
 .result {
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
   margin: 0 0 1.1rem;
 }
 
 .headline {
-  font-size: 2.2rem;
-  font-weight: 600;
-  line-height: 1.1;
+  font-family: var(--pixel-font);
+  font-size: 1.6rem;
+  line-height: 1.2;
 }
 
 .log {
@@ -333,7 +395,7 @@ label.choice:has(:checked) {
 }
 
 .result.good .headline {
-  color: var(--nix-dark);
+  color: var(--heading);
 }
 
 .result.bad .headline {
@@ -350,13 +412,11 @@ label.choice:has(:checked) {
 
 .revealed {
   color: var(--ink-soft);
-  border-color: var(--rule);
 }
 
 .revealed.correct {
   color: var(--ink);
-  border-color: var(--ink);
-  background: var(--nix-light);
+  background: var(--gold);
 }
 
 .revealed.wrong {
@@ -395,30 +455,34 @@ label.choice:has(:checked) {
 .share::-webkit-progress-value {
   background: repeating-linear-gradient(
     -45deg,
-    rgb(82 119 195 / 0.16) 0 2px,
-    transparent 2px 7px
+    rgb(94 108 199 / 0.22) 0 3px,
+    transparent 3px 8px
   );
 }
 
 .share::-moz-progress-bar {
   background: repeating-linear-gradient(
     -45deg,
-    rgb(82 119 195 / 0.16) 0 2px,
-    transparent 2px 7px
+    rgb(94 108 199 / 0.22) 0 3px,
+    transparent 3px 8px
   );
 }
 
+/* A slate panel, like the site's "In short" box. */
 .explanation {
   margin: 1.25rem 0 0;
-  padding: 0.8rem 0.95rem;
-  border: var(--line) dashed var(--nix-dark);
-  background: var(--sheet);
+  padding: 0.85rem 1rem;
+  border: var(--px) solid var(--ink);
+  background: var(--panel);
+  box-shadow: inset 0 var(--px) 0 var(--panel-light);
+  clip-path: var(--notch);
+  color: #fff;
   font-size: 0.92rem;
 }
 
 .explanation::before {
   content: "# ";
-  color: var(--nix-dark);
+  color: var(--sky);
   font-weight: 600;
 }
 
@@ -427,7 +491,8 @@ label.choice:has(:checked) {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 2px solid var(--ink);
+  border: var(--px) solid var(--ink);
+  clip-path: var(--notch);
 }
 
 .leaderboard li {
@@ -439,19 +504,24 @@ label.choice:has(:checked) {
   background: var(--sheet);
 }
 
+.leaderboard li:last-child {
+  border-bottom: none;
+}
+
 .leaderboard li:first-child {
   font-size: 1.15rem;
   font-weight: 600;
 }
 
 .leaderboard li.me {
-  background: var(--nix-light);
+  background: var(--gold);
 }
 
 .rank {
-  width: 2.6rem;
-  color: var(--nix-dark);
-  font-weight: 600;
+  width: 3.2rem;
+  color: var(--heading);
+  font-family: var(--pixel-font);
+  font-size: 0.75em;
 }
 
 .leaderboard li.me .rank {
@@ -481,7 +551,7 @@ label.choice:has(:checked) {
 footer {
   display: flex;
   justify-content: space-between;
-  margin: 0 1rem;
+  margin: 0 var(--gutter);
   padding: 0.6rem 0 0.9rem;
   border-top: 1px solid var(--rule);
   color: var(--ink-soft);
@@ -565,7 +635,7 @@ html:has(body.spectate) {
   min-height: 0;
 }
 
-/* A slide pinned to the drawing, framed like everything else. */
+/* A slide in a pixel frame. */
 #slide {
   grid-area: slide;
   padding: 1.6rem 1.6rem 0;
@@ -580,8 +650,10 @@ html:has(body.spectate) {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: contain;
-  border: 2px solid var(--ink);
+  border: var(--px) solid var(--ink);
   background: #fff;
+  clip-path: var(--notch);
+  image-rendering: auto;
   animation: slide-in 0.6s ease-out;
 }
 
@@ -601,7 +673,7 @@ html:has(body.spectate) {
   row-gap: 1rem;
   margin: 1.6rem 1.6rem 0;
   padding: 1.2rem 1.6rem;
-  border: 2px solid var(--ink);
+  border: var(--px) solid var(--ink);
   border-bottom: none;
 }
 
@@ -614,7 +686,7 @@ html:has(body.spectate) {
   margin: 0;
   padding: 1rem 0 0;
   border-left: none;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid rgb(255 255 255 / 0.25);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -622,7 +694,7 @@ html:has(body.spectate) {
 /* The game in the column: one choice per row and smaller type, sized so the
    longest questions and explanations still fit. */
 .stage:has(#slide:not(:empty)) #game {
-  border-left: 2px solid var(--ink);
+  border-left: var(--px) solid var(--ink);
   background: var(--sheet);
 }
 
@@ -631,7 +703,7 @@ html:has(body.spectate) {
 }
 
 .stage:has(#slide:not(:empty)) h1 {
-  font-size: 1.15rem;
+  font-size: 0.8rem;
 }
 
 .stage:has(#slide:not(:empty)) #tally {
@@ -639,11 +711,12 @@ html:has(body.spectate) {
 }
 
 .stage:has(#slide:not(:empty)) #timer {
-  margin: 0 1.4rem;
+  height: 0.9rem;
+  margin: 0.7rem 1.4rem 0;
 }
 
 .stage:has(#slide:not(:empty)) main {
-  padding: 1rem 1.4rem 0.9rem;
+  padding: 0.8rem 1.4rem 0.9rem;
 }
 
 .stage:has(#slide:not(:empty)) .label {
@@ -675,11 +748,12 @@ html:has(body.spectate) {
 }
 
 .stage:has(#slide:not(:empty)) .countdown.big {
-  font-size: 3rem;
+  font-size: 2.4rem;
 }
 
 .stage:has(#slide:not(:empty)) .explanation {
   margin-top: 0.9rem;
+  padding: 0.6rem 0.8rem;
   font-size: 0.95rem;
 }
 
@@ -707,13 +781,12 @@ html:has(body.spectate) {
   padding: 1.1rem 2rem 0.9rem;
 }
 
-.spectate .snowflake {
-  width: 2.6rem;
-  height: 2.6rem;
+.spectate .logo {
+  height: 2.8rem;
 }
 
 .spectate h1 {
-  font-size: 1.4rem;
+  font-size: 1rem;
 }
 
 #tally {
@@ -723,12 +796,8 @@ html:has(body.spectate) {
 }
 
 .spectate #timer {
-  height: 1.1rem;
-  margin: 0 2rem;
-}
-
-.spectate #bar {
-  height: 0.45rem;
+  height: 1.2rem;
+  margin: 1.1rem 2rem 0;
 }
 
 .spectate main {
@@ -755,12 +824,10 @@ html:has(body.spectate) {
 .spectate .choice {
   min-height: 4.2rem;
   font-size: 1.35rem;
-  border-width: 2px;
 }
 
 .spectate .letter {
   width: 3.4rem;
-  border-right-width: 2px;
 }
 
 .spectate .countdown {
@@ -769,7 +836,7 @@ html:has(body.spectate) {
 }
 
 .spectate .countdown.big {
-  font-size: 4.5rem;
+  font-size: 3.4rem;
 }
 
 .spectate .explanation {
@@ -784,8 +851,12 @@ html:has(body.spectate) {
   grid-template-rows: repeat(5, auto);
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  column-gap: 2rem;
   align-content: start;
+  background: var(--sheet);
+}
+
+.spectate .leaderboard li:nth-child(n + 6) {
+  border-left: 1px solid var(--rule);
 }
 
 .spectate .leaderboard li {
@@ -797,15 +868,18 @@ html:has(body.spectate) {
   font-size: 1.6rem;
 }
 
-/* The join strip along the bottom: code, address, and how to play. */
+/* The join strip along the bottom: code, address, and how to play, on a
+   slate panel. */
 .join {
   grid-area: join;
   display: flex;
   align-items: center;
   gap: 1.6rem;
   padding: 0.8rem 2rem;
-  border-top: 2px solid var(--ink);
-  background: var(--sheet);
+  border-top: var(--px) solid var(--ink);
+  background: var(--panel);
+  box-shadow: inset 0 var(--px) 0 var(--panel-light);
+  color: #fff;
 }
 
 .join p {
@@ -815,24 +889,31 @@ html:has(body.spectate) {
 .join .how {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.4rem;
+}
+
+.join .label {
+  color: var(--sky);
+  font-family: var(--pixel-font);
+  font-size: 0.7rem;
+  text-transform: uppercase;
 }
 
 .join .url {
-  font-size: 2rem;
-  font-weight: 600;
-  line-height: 1.1;
+  font-family: var(--pixel-font);
+  font-size: 1.5rem;
+  line-height: 1.2;
 }
 
 .join .hint {
-  color: var(--ink-soft);
+  color: #d3e7f1;
   font-size: 0.9rem;
 }
 
 .steps {
   margin: 0 0 0 auto;
   padding: 0 0 0 1.6rem;
-  border-left: 1px solid var(--rule);
+  border-left: 1px solid rgb(255 255 255 / 0.25);
   list-style: none;
   counter-reset: step;
   font-size: 1rem;
@@ -845,7 +926,7 @@ html:has(body.spectate) {
 
 .steps li::before {
   content: counter(step) ". ";
-  color: var(--nix-dark);
+  color: var(--gold);
   font-weight: 600;
 }
 
@@ -854,7 +935,7 @@ html:has(body.spectate) {
   height: 100%;
   width: auto;
   aspect-ratio: 1;
-  border: 2px solid var(--ink);
+  border: var(--px) solid var(--ink);
 }
 
 .qr rect {

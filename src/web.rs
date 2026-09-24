@@ -202,6 +202,14 @@ async fn vendor(Path(file): Path<String>) -> Response {
         "ibm-plex-mono-latin-ext-600-normal.woff2" => {
             (WOFF2, embed!("ibm-plex-mono-latin-ext-600-normal.woff2"))
         }
+        "press-start-2p-latin-400-normal.woff2" => {
+            (WOFF2, embed!("press-start-2p-latin-400-normal.woff2"))
+        }
+        "press-start-2p-latin-ext-400-normal.woff2" => {
+            (WOFF2, embed!("press-start-2p-latin-ext-400-normal.woff2"))
+        }
+        "nixcon-2026-icon.svg" => ("image/svg+xml", embed!("nixcon-2026-icon.svg")),
+        "nixcon-2026-cloud.png" => ("image/png", embed!("nixcon-2026-cloud.png")),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     static_file(content_type, "public, max-age=31536000, immutable", body)

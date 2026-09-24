@@ -144,9 +144,13 @@ runs [htmx](https://htmx.org) with its SSE extension, both vendored under
 `static/clock.js` is the only hand-written script: it runs the countdowns and
 the timer bar between server updates and closes the form when time is up.
 
-The look is a build plan on drafting paper: NixOS blues on a graph-paper grid,
-IBM Plex Mono throughout, questions labelled like store paths, and red only for
-what went wrong.
+The look follows [2026.nixcon.org](https://2026.nixcon.org): sky blue with
+faded pixel clouds, a dark bar with the NixCon eagle, Press Start 2P for
+labels, letters and numbers, and boxes with black pixel borders and notched
+corners. Questions and answers stay in IBM Plex Mono so they read easily, and
+are labelled like store paths. Your pick is blue, the right answer gold, and
+red is only for what went wrong. Fonts and images are vendored under
+`static/vendor/`.
 
 ## Livestream
 
@@ -183,8 +187,10 @@ git-ignored, a place to keep them for local runs.
 
 ## Credits
 
-- NixOS snowflake from [nixos-artwork](https://github.com/NixOS/nixos-artwork),
-  CC-BY 4.0.
+- The NixCon 2026 eagle and the pixel cloud from
+  [2026.nixcon.org](https://2026.nixcon.org).
+- [Press Start 2P](https://github.com/google/fonts/tree/main/ofl/pressstart2p),
+  SIL Open Font License 1.1 (`static/vendor/PressStart2P-OFL.txt`).
 - [IBM Plex Mono](https://github.com/IBM/plex), SIL Open Font License 1.1
   (`static/vendor/IBM-Plex-OFL.txt`).
 - [htmx](https://htmx.org) and its SSE extension, BSD Zero Clause License.
