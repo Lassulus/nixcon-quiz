@@ -181,15 +181,22 @@
               };
             };
 
+            # Proxy headers only on the quiz's own locations: flipping the
+            # server-wide recommendedProxySettings would add them to every
+            # other proxied location on the host and duplicate headers those
+            # set themselves.
             services.nginx = lib.mkIf (cfg.domain != null) {
               enable = true;
-              recommendedProxySettings = lib.mkDefault true;
               virtualHosts.${cfg.domain} = {
                 enableACME = lib.mkDefault true;
                 forceSSL = lib.mkDefault true;
-                locations."/".proxyPass = "http://${cfg.host}:${toString cfg.port}";
+                locations."/" = {
+                  proxyPass = "http://${cfg.host}:${toString cfg.port}";
+                  recommendedProxySettings = true;
+                };
                 locations."/api/events" = {
                   proxyPass = "http://${cfg.host}:${toString cfg.port}";
+                  recommendedProxySettings = true;
                   # Event streams stay open for the whole game.
                   extraConfig = ''
                     proxy_buffering off;
