@@ -52,7 +52,10 @@
   --red: #c4402b;
   --line: 1.5px;
   font-family: "Plex Mono", ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
-  font-size: 16px;
+  /* Everything is sized in rem, so this scales the whole page: 16px on
+     phones, growing with the smaller of width and height on big screens
+     (about 25px on a 1920x1080 display) so a question always fits. */
+  font-size: clamp(16px, min(1.5vw, 2.3vh), 30px);
   line-height: 1.45;
   color: var(--ink);
   background: var(--paper);
@@ -136,21 +139,21 @@ h1 {
 /* The clock is a ruler that runs out. */
 #timer {
   position: relative;
-  height: 14px;
+  height: 0.875rem;
   margin: 0 1rem;
   border-right: 1px solid var(--ink);
   background:
-    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 5%) bottom / 100% 5px
+    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 5%) bottom / 100% 0.3rem
       no-repeat,
-    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 25%) bottom / 100% 10px
-      no-repeat;
+    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 25%) bottom / 100%
+      0.625rem no-repeat;
 }
 
 #bar {
   position: absolute;
   top: 0;
   left: 0;
-  height: 5px;
+  height: 0.3rem;
   width: 0;
   background: var(--nix-dark);
   transition: width 0.2s linear;
