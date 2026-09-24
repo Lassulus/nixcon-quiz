@@ -5,7 +5,7 @@
 //!
 //! The spectator screen for the livestream is rendered from the same views,
 //! seen by nobody in particular, in a 16:9 layout with a QR code to join and,
-//! when there are any, break slides next to the game.
+//! when there are any, break slides filling the stage with the game beside.
 
 use crate::{
     game::{PhaseView, Standing, Tally, View},
