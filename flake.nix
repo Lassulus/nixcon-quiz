@@ -70,12 +70,13 @@
             };
             questions = lib.mkOption {
               type = lib.types.path;
-              example = lib.literalExpression "./questions";
+              default = "/var/lib/nixcon-quiz/questions";
               description = ''
                 Directory with one TOML file per question. Only the server
-                reads it; players never get to see it. The questions are
-                checked before the service starts. Keep it out of anything
-                public: whoever can read it knows every answer.
+                reads it; players never get to see it. The default keeps the
+                questions out of the world-readable Nix store: copy them there
+                after deploying and restart the service. Until the directory
+                has files in it the service is skipped rather than failed.
               '';
             };
             title = lib.mkOption {
@@ -138,26 +139,29 @@
               description = "NixCon quiz";
               wantedBy = [ "multi-user.target" ];
               after = [ "network.target" ];
+              # A fresh machine has no questions yet; don't fail the deploy.
+              unitConfig.ConditionDirectoryNotEmpty = "${cfg.questions}";
               serviceConfig = {
                 ExecStartPre = "${lib.getExe cfg.package} --check ${cfg.questions}";
-                ExecStart = lib.escapeShellArgs [
-                  (lib.getExe cfg.package)
-                  "--questions"
-                  "${cfg.questions}"
-                  "--listen"
-                  "${cfg.host}:${toString cfg.port}"
-                  "--title"
-                  cfg.title
-                  "--question-seconds"
-                  cfg.questionSeconds
-                  "--reveal-seconds"
-                  cfg.revealSeconds
-                  "--round-questions"
-                  cfg.roundQuestions
-                  "--leaderboard-seconds"
-                  cfg.leaderboardSeconds
-                ]
-                + lib.optionalString (cfg.publicUrl != null) " --public-url ${lib.escapeShellArg cfg.publicUrl}";
+                ExecStart =
+                  lib.escapeShellArgs [
+                    (lib.getExe cfg.package)
+                    "--questions"
+                    "${cfg.questions}"
+                    "--listen"
+                    "${cfg.host}:${toString cfg.port}"
+                    "--title"
+                    cfg.title
+                    "--question-seconds"
+                    cfg.questionSeconds
+                    "--reveal-seconds"
+                    cfg.revealSeconds
+                    "--round-questions"
+                    cfg.roundQuestions
+                    "--leaderboard-seconds"
+                    cfg.leaderboardSeconds
+                  ]
+                  + lib.optionalString (cfg.publicUrl != null) " --public-url ${lib.escapeShellArg cfg.publicUrl}";
                 Restart = "on-failure";
                 # One open event stream per player.
                 LimitNOFILE = 65536;
@@ -180,9 +184,6 @@
             services.nginx = lib.mkIf (cfg.domain != null) {
               enable = true;
               recommendedProxySettings = lib.mkDefault true;
-              # Every player holds a client and an upstream connection open.
-              appendConfig = "worker_rlimit_nofile 65536;";
-              eventsConfig = "worker_connections 16384;";
               virtualHosts.${cfg.domain} = {
                 enableACME = lib.mkDefault true;
                 forceSSL = lib.mkDefault true;
@@ -198,6 +199,16 @@
                 };
               };
             };
+
+            systemd.tmpfiles.settings.nixcon-quiz =
+              lib.mkIf (cfg.questions == "/var/lib/nixcon-quiz/questions")
+                {
+                  "/var/lib/nixcon-quiz".d = {
+                    mode = "0755";
+                    user = "root";
+                    group = "root";
+                  };
+                };
           };
         };
     in

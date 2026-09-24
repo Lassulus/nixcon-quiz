@@ -21,7 +21,7 @@ nix run . -- --help               # timing and title flags
   services.nixcon-quiz = {
     enable = true;
     domain = "quiz.lassul.us";  # nginx vhost + ACME, event stream unbuffered
-    questions = ./questions;    # private, see below
+    # questions = "/var/lib/nixcon-quiz/questions";  # the default, see below
     questionSeconds = 20;       # time to answer
     revealSeconds = 8;          # right answer on screen
     roundQuestions = 10;        # questions before the leaderboard; points reset after it
@@ -30,8 +30,22 @@ nix run . -- --help               # timing and title flags
 }
 ```
 
-The service runs `--check` on the questions before starting, so a broken
-file fails the deployment instead of taking the quiz down.
+The questions are not deployed with the configuration: anything in the Nix
+store is world-readable. Copy them to the server after deploying and restart
+the service:
+
+```sh
+rsync -r --delete questions/ root@server:/var/lib/nixcon-quiz/questions/
+ssh root@server systemctl restart nixcon-quiz
+```
+
+Until that directory has files in it the service is skipped instead of
+failing the deployment. On every start it runs `--check` on the questions, so
+a broken file stops the service with a message naming the file.
+
+The module doesn't touch nginx's global limits. Every player holds a client
+and an upstream connection open, so for a big audience make sure
+`worker_connections` and `worker_rlimit_nofile` are high enough.
 
 ## Questions
 
