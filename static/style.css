@@ -183,6 +183,8 @@ main {
   text-wrap: balance;
 }
 
+/* One choice per row, on any screen; only the spectator screen lays them
+   out 2x2. */
 .choices {
   display: grid;
   gap: 0.6rem;
@@ -191,12 +193,6 @@ main {
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-@media (min-width: 40rem) {
-  .choices {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .choice {
