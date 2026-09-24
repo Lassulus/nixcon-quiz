@@ -141,7 +141,8 @@ what went wrong.
 Open `/spectate` (e.g. https://quiz.lassul.us/spectate) in OBS as a browser
 source at 1920×1080, or on a projector. It shows the same questions, timer,
 reveal and leaderboard as the players, sized for 16:9 at any resolution, plus
-a live count of answers and a QR code to join. Watching doesn't make you a
+a live count of answers and, along the bottom, a QR code, the address and how
+to play. Watching doesn't make you a
 player: no cookie, and it doesn't count as online. While a question is open
 the screen only shows how many answered, never what.
 

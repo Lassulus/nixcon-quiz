@@ -46,10 +46,17 @@ pub fn spectate_page(view: &View, tally: Tally, join: &str) -> Markup {
                         (spectate_game(view, tally))
                     }
                     aside.join {
-                        p.label { "join at" }
-                        p.url { (shown.trim_end_matches('/')) }
                         (qr(join))
-                        p.hint { "scan to play along" }
+                        div.how {
+                            p.label { "join the quiz" }
+                            p.url { (shown.trim_end_matches('/')) }
+                            p.hint { "scan the code or open the address on your phone" }
+                        }
+                        ol.steps {
+                            li { "everyone gets the same question at the same time" }
+                            li { "tap an answer; you can change it until the time runs out" }
+                            li { "right answers score, faster ones score more" }
+                        }
                     }
                 }
                 p #connection {}

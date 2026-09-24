@@ -510,16 +510,17 @@ html:has(body.spectate) {
 
 .stage {
   display: grid;
-  grid-template-columns: 1fr 17rem;
+  grid-template-rows: minmax(0, 1fr) 9.5rem;
   height: 100vh;
 }
 
 .spectate #game {
   min-width: 0;
+  min-height: 0;
 }
 
 .spectate .view {
-  height: 100vh;
+  height: 100%;
   min-height: 0;
   max-width: none;
 }
@@ -598,8 +599,15 @@ html:has(body.spectate) {
   font-size: 1.25rem;
 }
 
+/* Top ten in two columns of five, filled downwards, so it fits above the
+   join strip. */
 .spectate .leaderboard {
-  max-width: 44rem;
+  display: grid;
+  grid-template-rows: repeat(5, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  column-gap: 2rem;
+  align-content: start;
 }
 
 .spectate .leaderboard li {
@@ -611,14 +619,13 @@ html:has(body.spectate) {
   font-size: 1.6rem;
 }
 
-/* The join panel: a title block in the corner of the drawing. */
+/* The join strip along the bottom: code, address, and how to play. */
 .join {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.6rem;
-  padding: 1.5rem;
-  border-left: 2px solid var(--ink);
+  align-items: center;
+  gap: 1.6rem;
+  padding: 0.8rem 2rem;
+  border-top: 2px solid var(--ink);
   background: var(--sheet);
 }
 
@@ -626,10 +633,16 @@ html:has(body.spectate) {
   margin: 0;
 }
 
+.join .how {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .join .url {
-  font-size: 1.45rem;
+  font-size: 2rem;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  line-height: 1.1;
 }
 
 .join .hint {
@@ -637,9 +650,31 @@ html:has(body.spectate) {
   font-size: 0.9rem;
 }
 
+.steps {
+  margin: 0 0 0 auto;
+  padding: 0 0 0 1.6rem;
+  border-left: 1px solid var(--rule);
+  list-style: none;
+  counter-reset: step;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.steps li {
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step) ". ";
+  color: var(--nix-dark);
+  font-weight: 600;
+}
+
 .qr {
-  width: 100%;
-  height: auto;
+  flex: none;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1;
   border: 2px solid var(--ink);
 }
 
