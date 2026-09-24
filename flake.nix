@@ -137,7 +137,7 @@
             domain = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
               default = null;
-              example = "quiz.nixos.org";
+              example = "quiz.nixcon.org";
               description = ''
                 When set, serve the quiz on this name through nginx with a
                 Let's Encrypt certificate.
