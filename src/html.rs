@@ -4,9 +4,13 @@
 //! buttons that htmx posts on every change.
 //!
 //! The spectator screen for the livestream is rendered from the same views,
-//! seen by nobody in particular, in a 16:9 layout with a QR code to join.
+//! seen by nobody in particular, in a 16:9 layout with a QR code to join and,
+//! when there are any, break slides next to the game.
 
-use crate::game::{PhaseView, Standing, Tally, View};
+use crate::{
+    game::{PhaseView, Standing, Tally, View},
+    slides::Slide,
+};
 use maud::{DOCTYPE, Markup, html};
 
 pub const HTMX: &str = "/vendor/htmx-2.0.11.min.js";
@@ -31,8 +35,14 @@ pub fn page(view: &View, events: &str) -> Markup {
     }
 }
 
-/// The livestream screen. `join` is the URL players should open.
-pub fn spectate_page(view: &View, tally: Tally, join: &str) -> Markup {
+/// The livestream screen. `join` is the URL players should open. `slide` is
+/// the break slide to show, `None` when the screen has no slides at all.
+pub fn spectate_page(
+    view: &View,
+    tally: Tally,
+    join: &str,
+    slide: Option<Option<&Slide>>,
+) -> Markup {
     let shown = join
         .trim_start_matches("https://")
         .trim_start_matches("http://");
@@ -41,9 +51,12 @@ pub fn spectate_page(view: &View, tally: Tally, join: &str) -> Markup {
         html lang="en" {
             (head(view.title))
             body.spectate {
-                div.stage {
-                    div #game hx-ext="sse" sse-connect="/api/events/spectate" sse-swap="message" {
+                div.stage hx-ext="sse" sse-connect="/api/events/spectate" {
+                    div #game sse-swap="message" {
                         (spectate_game(view, tally))
+                    }
+                    @if let Some(current) = slide {
+                        aside #slide sse-swap="slide" { (self::slide(current)) }
                     }
                     aside.join {
                         (qr(join))
@@ -213,6 +226,15 @@ pub fn spectate_game(view: &View, tally: Tally) -> Markup {
                     }
                 }
             }
+        }
+    }
+}
+
+/// The payload of `slide` events: empty while the slides directory is.
+pub fn slide(slide: Option<&Slide>) -> Markup {
+    html! {
+        @if let Some(slide) = slide {
+            img src={ "/slides/" (slide.name) } alt=(slide.alt);
         }
     }
 }

@@ -9,6 +9,7 @@ and all points reset for the next round.
 
 ```sh
 nix run . -- --questions examples/questions --listen 127.0.0.1:8093
+nix run . -- --questions questions --slides slides   # with break slides on /spectate
 nix run . -- --check questions/   # validate the question files
 nix run . -- --help               # timing and title flags
 ```
@@ -26,6 +27,8 @@ nix run . -- --help               # timing and title flags
     revealSeconds = 8;          # right answer on screen
     roundQuestions = 10;        # questions before the leaderboard; points reset after it
     leaderboardSeconds = 30;
+    # slides = "/var/lib/nixcon-quiz/slides";  # the default; null for none
+    slideSeconds = 15;          # how long each break slide is shown
   };
 }
 ```
@@ -42,6 +45,13 @@ ssh root@server systemctl restart nixcon-quiz
 Until that directory has files in it the service is skipped instead of
 failing the deployment. On every start it runs `--check` on the questions, so
 a broken file stops the service with a message naming the file.
+
+Break slides go the same way, and need no restart: the directory is scanned
+again before every slide.
+
+```sh
+rsync -r --delete slides/ root@server:/var/lib/nixcon-quiz/slides/
+```
 
 The module doesn't touch nginx's global limits. Every player holds a client
 and an upstream connection open, so for a big audience make sure
@@ -118,8 +128,10 @@ runs [htmx](https://htmx.org) with its SSE extension, both vendored under
   cookie on first contact.
 - `GET /spectate` — the livestream screen.
 - `GET /api/events/spectate` — its stream: the whole view on every phase
-  change, and a `tally` event whenever the number of answers or players
-  changes.
+  change, a `tally` event whenever the number of answers or players
+  changes, and a `slide` event with the `<img>` of each new break slide.
+- `GET /slides/<file>` — the break slides, named after a hash of their
+  content so they can be cached forever.
 - `GET /api/events?seen=<version>` — Server-Sent Events; on every phase change
   the server sends the player's re-rendered view as an HTML fragment and htmx
   swaps it in. `seen` names the state the page was rendered with; if nothing
@@ -148,6 +160,25 @@ the screen only shows how many answered, never what.
 
 The QR code points at `publicUrl` (`--public-url`), which the module sets to
 `https://<domain>/`; without it the screen uses the host it was loaded from.
+
+### Break slides
+
+With `--slides DIR` (the module's `slides`) the screen shows break slides —
+sponsor slides, announcements — in a column next to the game, above the join
+details, each for `--slide-seconds` (default 15) and in file name order;
+prefix names with numbers to choose it. PDF, PNG, JPEG and WebP are shown;
+every page of a PDF is a slide, rendered at 1920 pixels with poppler's
+`pdftoppm` (the package brings it along; `cargo run` needs it on `PATH`, the
+dev shell has it). Every slide is framed as 16:9; other shapes get white
+bars.
+
+The directory is scanned before every slide, so files can be dropped in,
+replaced or removed while the quiz runs; a PDF is rendered again only when it
+changed. While the directory is empty or missing, the screen keeps the plain
+layout with the join strip along the bottom.
+
+Like the questions, the slides are not part of the repository: `slides/` is
+git-ignored, a place to keep them for local runs.
 
 ## Credits
 

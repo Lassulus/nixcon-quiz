@@ -8,6 +8,7 @@
 use crate::{
     game::{AnswerError, Game, PlayerId, Tally},
     html,
+    slides::{self, Library, Slide},
 };
 use axum::{
     Form, Router,
@@ -40,6 +41,15 @@ struct App {
     boot: u64,
     /// Where players join, for the QR code on the spectator screen.
     public_url: Option<String>,
+    /// The spectator screen's break slides, when there is a slides directory.
+    slides: Option<watch::Sender<Slides>>,
+}
+
+#[derive(Default)]
+struct Slides {
+    /// Everything from the last scan; any of these may be requested.
+    all: Vec<Arc<Slide>>,
+    shown: Option<Arc<Slide>>,
 }
 
 impl App {
@@ -63,25 +73,34 @@ pub fn now_ms() -> u64 {
 }
 
 /// `public_url` is the address shown to the livestream audience; without it
-/// the spectator screen uses the host it was loaded from.
+/// the spectator screen uses the host it was loaded from. `slides` are shown
+/// next to the game on that screen, each for the given time.
 pub async fn serve(
     listener: TcpListener,
     game: Game,
     public_url: Option<String>,
+    slides: Option<(Library, Duration)>,
 ) -> std::io::Result<()> {
     let app = Arc::new(App {
         game: Mutex::new(game),
         changes: watch::Sender::new(0),
         boot: rand::random(),
         public_url,
+        slides: slides
+            .is_some()
+            .then(|| watch::Sender::new(Slides::default())),
     });
     tokio::spawn(run_clock(app.clone()));
+    if let Some((library, every)) = slides {
+        tokio::spawn(run_slides(app.clone(), library, every));
+    }
     let router = Router::new()
         .route("/", get(index))
         .route("/spectate", get(spectate))
         .route("/clock.js", get(clock))
         .route("/style.css", get(style))
         .route("/vendor/{file}", get(vendor))
+        .route("/slides/{file}", get(slide))
         .route("/api/events", get(events))
         .route("/api/events/spectate", get(spectate_events))
         .route("/api/answer", post(answer))
@@ -101,6 +120,27 @@ async fn run_clock(app: Arc<App>) {
         };
         let wait = deadline.saturating_sub(now_ms()).max(1);
         tokio::time::sleep(Duration::from_millis(wait)).await;
+    }
+}
+
+/// Looks for new, changed and removed slides, then moves on to the next one.
+async fn run_slides(app: Arc<App>, mut library: Library, every: Duration) {
+    let Some(sender) = &app.slides else { return };
+    loop {
+        let all;
+        (library, all) = tokio::task::spawn_blocking(move || {
+            let all = library.scan();
+            (library, all)
+        })
+        .await
+        .expect("scanning slides");
+        sender.send_if_modified(|slides| {
+            let next = slides::next(&all, slides.shown.as_deref());
+            let changed = next.as_ref().map(|s| &s.name) != slides.shown.as_ref().map(|s| &s.name);
+            *slides = Slides { all, shown: next };
+            changed
+        });
+        tokio::time::sleep(every).await;
     }
 }
 
@@ -167,6 +207,22 @@ async fn vendor(Path(file): Path<String>) -> Response {
     static_file(content_type, "public, max-age=31536000, immutable", body)
 }
 
+/// Named after their content, so they may be cached forever too.
+async fn slide(State(app): State<Arc<App>>, Path(file): Path<String>) -> Response {
+    let found = app.slides.as_ref().and_then(|slides| {
+        let slides = slides.borrow();
+        slides.all.iter().find(|s| s.name == file).cloned()
+    });
+    let Some(slide) = found else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    static_file(
+        slide.content_type,
+        "public, max-age=31536000, immutable",
+        slide.body.clone(),
+    )
+}
+
 fn set_cookie(response: &mut Response, token: &str) {
     let cookie =
         format!("{COOKIE}={token}; Path=/; Max-Age={COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict");
@@ -222,8 +278,15 @@ async fn spectate(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
             .unwrap_or("localhost");
         format!("http://{host}/")
     });
+    let slide = app.slides.as_ref().map(|s| s.borrow().shown.clone());
     let game = app.game();
-    let page = html::spectate_page(&game.spectate(now_ms()), game.tally(), &join).into_string();
+    let page = html::spectate_page(
+        &game.spectate(now_ms()),
+        game.tally(),
+        &join,
+        slide.as_ref().map(Option::as_deref),
+    )
+    .into_string();
     html_response(page)
 }
 
@@ -316,14 +379,20 @@ async fn events(
 /// How often the spectator screen's answer count is refreshed.
 const TALLY_EVERY: Duration = Duration::from_millis(500);
 
-/// The spectator screen's stream: the whole view on every phase change, and
-/// in between a `tally` event whenever the number of answers or players
-/// changes.
+/// The spectator screen's stream: the whole view on every phase change, in
+/// between a `tally` event whenever the number of answers or players
+/// changes, and a `slide` event with each new break slide.
 async fn spectate_events(State(app): State<Arc<App>>) -> Response {
     let changes = app.changes.subscribe();
+    let slides = app.slides.as_ref().map(|s| {
+        let mut slides = s.subscribe();
+        // Start with the current slide: the stream may be a reconnect.
+        slides.mark_changed();
+        slides
+    });
     let updates = stream::unfold(
-        (app, changes, None::<Tally>),
-        |(app, mut changes, mut shown)| async move {
+        (app, changes, slides, None::<Tally>),
+        |(app, mut changes, mut slides, mut shown)| async move {
             loop {
                 let Some(last) = shown else {
                     let (fragment, tally) = {
@@ -335,12 +404,24 @@ async fn spectate_events(State(app): State<Arc<App>>) -> Response {
                         )
                     };
                     let event = Event::default().data(fragment);
-                    return Some((Ok::<_, Infallible>(event), (app, changes, Some(tally))));
+                    return Some((
+                        Ok::<_, Infallible>(event),
+                        (app, changes, slides, Some(tally)),
+                    ));
                 };
                 tokio::select! {
                     changed = changes.changed() => {
                         changed.ok()?;
                         shown = None;
+                    }
+                    Some(changed) = async { Some(slides.as_mut()?.changed().await) } => {
+                        changed.ok()?;
+                        let fragment = slides
+                            .as_mut()
+                            .map(|s| html::slide(s.borrow_and_update().shown.as_deref()).into_string())
+                            .unwrap_or_default();
+                        let event = Event::default().event("slide").data(fragment);
+                        return Some((Ok(event), (app, changes, slides, shown)));
                     }
                     () = tokio::time::sleep(TALLY_EVERY) => {
                         let (tally, text) = {
@@ -350,7 +431,7 @@ async fn spectate_events(State(app): State<Arc<App>>) -> Response {
                         };
                         if tally != last {
                             let event = Event::default().event("tally").data(text);
-                            return Some((Ok(event), (app, changes, Some(tally))));
+                            return Some((Ok(event), (app, changes, slides, Some(tally))));
                         }
                     }
                 }

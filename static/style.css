@@ -508,15 +508,85 @@ html:has(body.spectate) {
   overflow: hidden;
 }
 
+/* The game fills the stage above a strip on how to join. */
 .stage {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) 9.5rem;
+  grid-template-areas:
+    "game"
+    "join";
   height: 100vh;
 }
 
+/* With a break slide, the slide and how to join share a column next to the
+   game, which keeps the full height for long questions. */
+.stage:has(#slide:not(:empty)) {
+  grid-template-columns: minmax(0, 1fr) 30rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "game slide"
+    "game join";
+}
+
 .spectate #game {
+  grid-area: game;
   min-width: 0;
   min-height: 0;
+}
+
+/* A slide pinned to the drawing, framed like everything else. */
+#slide {
+  grid-area: slide;
+  padding: 1.6rem 1.6rem 0;
+  border-left: 2px solid var(--ink);
+  background: var(--sheet);
+}
+
+#slide:empty {
+  display: none;
+}
+
+#slide img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border: 2px solid var(--ink);
+  background: #fff;
+  animation: slide-in 0.6s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.stage:has(#slide:not(:empty)) .join {
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 1.2rem;
+  padding: 1.6rem;
+  border-top: none;
+  border-left: 2px solid var(--ink);
+}
+
+.stage:has(#slide:not(:empty)) .qr {
+  height: 7.5rem;
+}
+
+.stage:has(#slide:not(:empty)) .how {
+  flex: 1;
+  min-width: 0;
+}
+
+.stage:has(#slide:not(:empty)) .steps {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 1rem 0 0;
+  border-left: none;
+  border-top: 1px solid var(--rule);
 }
 
 .spectate .view {
@@ -621,6 +691,7 @@ html:has(body.spectate) {
 
 /* The join strip along the bottom: code, address, and how to play. */
 .join {
+  grid-area: join;
   display: flex;
   align-items: center;
   gap: 1.6rem;

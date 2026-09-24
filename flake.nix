@@ -35,11 +35,15 @@
             ];
           };
           cargoLock.lockFile = ./Cargo.lock;
+          nativeBuildInputs = [ pkgs.makeWrapper ];
           # The real questions stay out of the repository so nobody can read
           # the answers before playing; the examples show the format.
+          # PDF slides are rendered with poppler's pdfinfo and pdftoppm.
           postInstall = ''
             mkdir -p $out/share/nixcon-quiz
             cp -r examples/questions $out/share/nixcon-quiz/example-questions
+            wrapProgram $out/bin/nixcon-quiz \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.poppler-utils ]}
           '';
           meta = {
             description = "Live multiplayer quiz for NixCon";
@@ -78,6 +82,22 @@
                 after deploying and restart the service. Until the directory
                 has files in it the service is skipped rather than failed.
               '';
+            };
+            slides = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
+              default = "/var/lib/nixcon-quiz/slides";
+              description = ''
+                Directory with break slides (PDF, PNG, JPEG, WebP) shown next
+                to the game on /spectate, in file name order. It is scanned
+                again before every slide, so files can be added or removed
+                while the quiz runs; a missing directory shows no slides.
+                Null leaves the spectator screen without a slide column.
+              '';
+            };
+            slideSeconds = lib.mkOption {
+              type = lib.types.ints.positive;
+              default = 15;
+              description = "How long each break slide is shown.";
             };
             title = lib.mkOption {
               type = lib.types.str;
@@ -161,7 +181,16 @@
                     "--leaderboard-seconds"
                     cfg.leaderboardSeconds
                   ]
-                  + lib.optionalString (cfg.publicUrl != null) " --public-url ${lib.escapeShellArg cfg.publicUrl}";
+                  + lib.optionalString (cfg.publicUrl != null) " --public-url ${lib.escapeShellArg cfg.publicUrl}"
+                  + lib.optionalString (cfg.slides != null) (
+                    " "
+                    + lib.escapeShellArgs [
+                      "--slides"
+                      "${cfg.slides}"
+                      "--slide-seconds"
+                      cfg.slideSeconds
+                    ]
+                  );
                 Restart = "on-failure";
                 # One open event stream per player.
                 LimitNOFILE = 65536;
@@ -248,6 +277,7 @@
             pkgs.clippy
             pkgs.rustfmt
             pkgs.rust-analyzer
+            pkgs.poppler-utils
           ];
         };
       });
@@ -256,6 +286,39 @@
         pkgs:
         let
           quiz = self.packages.${pkgs.stdenv.hostPlatform.system}.nixcon-quiz;
+          # A two-page PDF, pages of different sizes so they render to
+          # different images, and a PNG of its first page.
+          testSlides =
+            pkgs.runCommand "test-slides"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.poppler-utils
+                ];
+              }
+              ''
+                mkdir $out
+                python3 - > $out/deck.pdf <<'EOF'
+                import sys
+                objects = [
+                    b"<< /Type /Catalog /Pages 2 0 R >>",
+                    b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 160 90] >>",
+                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 160 120] >>",
+                ]
+                out = bytearray(b"%PDF-1.4\n")
+                offsets = []
+                for i, body in enumerate(objects, 1):
+                    offsets.append(len(out))
+                    out += b"%d 0 obj\n%s\nendobj\n" % (i, body)
+                xref = len(out)
+                out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+                out += b"".join(b"%010d 00000 n \n" % o for o in offsets)
+                out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+                sys.stdout.buffer.write(out)
+                EOF
+                pdftoppm -png -singlefile $out/deck.pdf $out/photo
+              '';
         in
         {
           package = quiz;
@@ -274,6 +337,8 @@
                 domain = "quiz.test";
                 title = "Test Quiz";
                 questionSeconds = 60;
+                slides = "/var/lib/slides";
+                slideSeconds = 1;
                 questions = pkgs.writeTextDir "only.toml" ''
                   question = "The only question"
                   choices = ["yes", "no"]
@@ -354,6 +419,20 @@
                 "curl -sN --max-time 2 http://quiz.test/api/events/spectate || true"
               )
               assert 'data-phase="question"' in out, out
+
+              # Slides dropped in while the quiz runs are picked up: both
+              # pages of the PDF and the image take turns, served as PNGs.
+              assert '<aside id="slide" sse-swap="slide"></aside>' in screen, screen
+              machine.succeed("mkdir -p /var/lib/slides && cp ${testSlides}/* /var/lib/slides/")
+              out = machine.succeed(
+                "curl -sN --max-time 5 http://quiz.test/api/events/spectate || true"
+              )
+              shown = set(re.findall(r'src="(/slides/[^"]+)"', out))
+              assert len(shown) == 3, out
+              for slide in shown:
+                  headers = machine.succeed(f"curl -sf -D - -o /tmp/slide http://quiz.test{slide}")
+                  assert "content-type: image/png" in headers.lower(), headers
+                  machine.succeed("head -c 8 /tmp/slide | grep -q PNG")
             '';
           };
         }

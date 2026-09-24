@@ -2,9 +2,10 @@ mod game;
 mod html;
 mod names;
 mod quiz;
+mod slides;
 mod web;
 
-use std::{path::PathBuf, process::ExitCode};
+use std::{path::PathBuf, process::ExitCode, time::Duration};
 
 const USAGE: &str = "\
 usage: nixcon-quiz --questions DIR [options]
@@ -15,6 +16,9 @@ usage: nixcon-quiz --questions DIR [options]
   --listen ADDR:PORT         address to serve on (default 127.0.0.1:8080)
   --public-url URL           join address shown on the /spectate screen
                              (default: the host the screen was loaded from)
+  --slides DIR               break slides (PDF, PNG, JPEG, WebP) shown next to
+                             the game on /spectate; files may change any time
+  --slide-seconds N          how long each slide is shown (default 15)
   --title TEXT               page title (default \"NixCon Quiz\")
   --question-seconds N       time to answer each question (default 20)
   --reveal-seconds N         how long the right answer is shown (default 8)
@@ -36,6 +40,8 @@ fn main() -> ExitCode {
     let mut check = None;
     let mut listen = String::from("127.0.0.1:8080");
     let mut public_url = None;
+    let mut slides = None;
+    let mut slide_seconds = 15;
     let mut settings = game::Settings::default();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -45,6 +51,10 @@ fn main() -> ExitCode {
             "--check" => value().map(|v| check = Some(PathBuf::from(v))),
             "--listen" => value().map(|v| listen = v),
             "--public-url" => value().map(|v| public_url = Some(v)),
+            "--slides" => value().map(|v| slides = Some(PathBuf::from(v))),
+            "--slide-seconds" => value()
+                .and_then(|v| positive(&arg, v))
+                .map(|n| slide_seconds = n),
             "--title" => value().map(|v| settings.title = v),
             "--question-seconds" => value()
                 .and_then(|v| positive(&arg, v))
@@ -104,10 +114,18 @@ fn main() -> ExitCode {
             dir.display(),
             listener.local_addr()?
         );
+        let slides = slides.map(|dir| {
+            eprintln!("slides from {}, {slide_seconds}s each", dir.display());
+            (
+                slides::Library::new(dir),
+                Duration::from_secs(slide_seconds),
+            )
+        });
         web::serve(
             listener,
             game::Game::new(settings, questions, web::now_ms()),
             public_url,
+            slides,
         )
         .await
     });
