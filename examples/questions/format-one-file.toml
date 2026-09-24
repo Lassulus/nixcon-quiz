@@ -1,0 +1,4 @@
+question = "How many questions go in one file?"
+choices = ["One", "Ten", "As many as you like", "Exactly four"]
+answer = "One"
+explanation = "Every *.toml file in the directory is one question; other files are ignored."

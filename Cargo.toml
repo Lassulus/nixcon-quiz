@@ -1,0 +1,20 @@
+[package]
+name = "nixcon-quiz"
+version = "0.1.0"
+edition = "2024"
+description = "Live multiplayer quiz for NixCon: everyone answers the same question against the same clock"
+license = "MIT"
+
+[dependencies]
+axum = "0.8.9"
+futures-util = "0.3.34"
+maud = "0.27.0"
+qrcode = { version = "0.14.1", default-features = false }
+rand = "0.10.3"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "net", "time", "signal", "macros"] }
+toml = "1.1.6"
+
+[profile.release]
+lto = true
+codegen-units = 1

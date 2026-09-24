@@ -1,0 +1,8 @@
+question = "When do players see the explanation?"
+choices = [
+  "Before answering",
+  "Never",
+  "Once the question has closed",
+]
+answer = "Once the question has closed"
+explanation = "It is part of the reveal, together with how everybody voted."

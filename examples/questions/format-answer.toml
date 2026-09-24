@@ -1,0 +1,9 @@
+question = "In a question file, what must the answer match?"
+choices = [
+  "The first choice",
+  "One of the choices, exactly",
+  "Any word in the question",
+  "The file name",
+]
+answer = "One of the choices, exactly"
+explanation = "The server refuses to start if an answer is spelled differently from every choice."
