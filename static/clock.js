@@ -30,6 +30,15 @@ function tick() {
   }
   const choices = document.querySelector("fieldset[data-closes]");
   if (choices && now >= Number(choices.dataset.closes)) choices.disabled = true;
+
+  // Until you pick, what a right answer is worth right now: game::points.
+  const worth = document.querySelector(".worth");
+  if (worth && worth.dataset.picked === undefined) {
+    const started = Number(worth.dataset.started);
+    const span = Math.max(1, Number(worth.dataset.ends) - started);
+    const bonus = Math.floor((Number(worth.dataset.speed) * Math.min(span, left(worth))) / span);
+    worth.querySelector(".value").textContent = `+${Number(worth.dataset.base) + bonus}`;
+  }
 }
 
 setInterval(tick, 200);
@@ -60,6 +69,13 @@ document.addEventListener("htmx:afterRequest", (event) => {
   if (form.id !== "answer" || !event.detail.successful) return;
   form.dataset.saved = event.detail.requestConfig.formData.get("choice");
   form.querySelector(".notice").textContent = "";
+  // The server says what the pick earns if it's right; that stays put.
+  const points = event.detail.xhr.getResponseHeader("x-points");
+  const worth = form.querySelector(".worth");
+  if (points && worth) {
+    worth.dataset.picked = points;
+    worth.querySelector(".value").textContent = `+${points}`;
+  }
 });
 document.addEventListener("htmx:sendError", (event) =>
   answerFailed(event, "Network trouble, pick again"),

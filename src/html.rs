@@ -8,7 +8,7 @@
 //! when there are any, break slides filling the stage with the game beside.
 
 use crate::{
-    game::{PhaseView, Standing, Tally, View},
+    game::{BASE_POINTS, PhaseView, SPEED_POINTS, Standing, Tally, View, points},
     slides::Slide,
 };
 use maud::{DOCTYPE, Markup, html};
@@ -18,16 +18,27 @@ pub const HTMX_SSE: &str = "/vendor/htmx-ext-sse-2.2.4.min.js";
 
 const LETTERS: [char; 6] = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-/// The whole document, with the current view already in place. `events` is
-/// the event stream URL, which names the state rendered here.
-pub fn page(view: &View, events: &str) -> Markup {
+/// Where one game lives. The normal quiz and the fast one each have their
+/// own pages, streams and answer endpoint.
+pub struct Urls {
+    pub page: &'static str,
+    pub spectate: &'static str,
+    pub qr: &'static str,
+    pub events: &'static str,
+    pub spectate_events: &'static str,
+    pub answer: &'static str,
+}
+
+/// The whole document, with the current view already in place. `seen` names
+/// the state rendered here, for the event stream.
+pub fn page(view: &View, urls: &Urls, seen: &str) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
             (head(view.title))
             body {
-                div #game hx-ext="sse" sse-connect=(events) sse-swap="message" {
-                    (game(view))
+                div #game hx-ext="sse" sse-connect={ (urls.events) "?seen=" (seen) } sse-swap="message" {
+                    (game(view, urls))
                 }
                 p #connection {}
             }
@@ -40,6 +51,7 @@ pub fn page(view: &View, events: &str) -> Markup {
 pub fn spectate_page(
     view: &View,
     tally: Tally,
+    urls: &Urls,
     join: &str,
     slide: Option<Option<&Slide>>,
 ) -> Markup {
@@ -51,7 +63,7 @@ pub fn spectate_page(
         html lang="en" {
             (head(view.title))
             body.spectate {
-                div.stage hx-ext="sse" sse-connect="/api/events/spectate" {
+                div.stage hx-ext="sse" sse-connect=(urls.spectate_events) {
                     div #game sse-swap="message" {
                         (spectate_game(view, tally))
                     }
@@ -59,7 +71,7 @@ pub fn spectate_page(
                         aside #slide sse-swap="slide" { (self::slide(current)) }
                     }
                     aside.join {
-                        (qr(join))
+                        img.qr src=(urls.qr) alt={ "QR code for " (join) };
                         div.how {
                             p.label { "join the quiz" }
                             p.url { (shown.trim_end_matches('/')) }
@@ -120,7 +132,7 @@ fn timer(phase: &PhaseView) -> Markup {
 }
 
 /// Everything that changes during the game; the payload of every event.
-pub fn game(view: &View) -> Markup {
+pub fn game(view: &View, urls: &Urls) -> Markup {
     let me = view.me.as_ref().expect("a player's view");
     html! {
         div.view data-now=(view.now) data-phase=(phase_name(&view.phase)) {
@@ -140,9 +152,9 @@ pub fn game(view: &View) -> Markup {
             (timer(&view.phase))
             main {
                 @match &view.phase {
-                    PhaseView::Question { seq, number, of, text, choices, ends, answered, .. } => {
+                    question @ PhaseView::Question { number, of, text, ends, .. } => {
                         (heading(*number, *of, text))
-                        (answer_form(*seq, choices, *answered, *ends, view.now))
+                        (answer_form(urls.answer, question, view.now))
                         (countdown(*ends, view.now, "{}s", true))
                     }
                     PhaseView::Reveal {
@@ -153,7 +165,10 @@ pub fn game(view: &View) -> Markup {
                         @match (answered, gained) {
                             (None, _) => (result("none", "no answer", "error: evaluation timed out")),
                             (Some(_), Some(points)) => {
-                                (result("good", &format!("+{points}"), "build succeeded"))
+                                (result("good", &format!("+{points}"), &format!(
+                                    "build succeeded: {BASE_POINTS} for right + {} for speed",
+                                    points - BASE_POINTS,
+                                )))
                             }
                             (Some(_), None) => {
                                 (result("bad", "wrong", "error: builder for 'answer.drv' failed"))
@@ -301,12 +316,13 @@ fn standings(top: &[Standing], me: Option<u64>) -> Markup {
     }
 }
 
-/// A QR code as an SVG path, one unit per module plus the quiet zone.
-fn qr(url: &str) -> Markup {
+/// A QR code as a standalone SVG document, one unit per module plus the
+/// quiet zone. The colours are part of the image, not the page's CSS, so
+/// extensions like Dark Reader, which recolour the page, can't turn it into
+/// something that no longer scans.
+pub fn qr_svg(url: &str) -> Option<String> {
     const QUIET: usize = 2;
-    let Ok(code) = qrcode::QrCode::new(url) else {
-        return html! {};
-    };
+    let code = qrcode::QrCode::new(url).ok()?;
     let width = code.width();
     let mut d = String::new();
     for (i, colour) in code.to_colors().iter().enumerate() {
@@ -316,12 +332,13 @@ fn qr(url: &str) -> Markup {
         }
     }
     let size = width + 2 * QUIET;
-    html! {
-        svg.qr viewBox={ "0 0 " (size) " " (size) } shape-rendering="crispEdges" role="img" aria-label={ "QR code for " (url) } {
-            rect width=(size) height=(size) {}
-            path d=(d) {}
+    let svg = html! {
+        svg xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 " (size) " " (size) } shape-rendering="crispEdges" {
+            rect width=(size) height=(size) fill="#fff" {}
+            path d=(d) fill="#2f2f2f" {}
         }
-    }
+    };
+    Some(svg.into_string())
 }
 
 /// The NixCon 2026 eagle from 2026.nixcon.org.
@@ -365,19 +382,25 @@ fn result(class: &str, headline: &str, log: &str) -> Markup {
     }
 }
 
-/// A radio per choice. htmx posts the form on every change; `queue last`
-/// keeps requests in order so quick switching can't leave an older pick on
-/// the server. The picked state is the radio itself, so nothing is swapped
-/// back.
-fn answer_form(
-    seq: u64,
-    choices: &[String],
-    answered: Option<usize>,
-    ends: u64,
-    now: u64,
-) -> Markup {
+/// A radio per choice, posted to `url`. htmx posts the form on every change;
+/// `queue last` keeps requests in order so quick switching can't leave an
+/// older pick on the server. The picked state is the radio itself, so
+/// nothing is swapped back.
+fn answer_form(url: &str, question: &PhaseView, now: u64) -> Markup {
+    let PhaseView::Question {
+        seq,
+        choices,
+        started,
+        ends,
+        answered,
+        pick_points,
+        ..
+    } = *question
+    else {
+        return html! {};
+    };
     html! {
-        form #answer hx-post="/api/answer" hx-trigger="change" hx-swap="none"
+        form #answer hx-post=(url) hx-trigger="change" hx-swap="none"
             hx-sync="this:queue last" data-saved=[answered] {
             input type="hidden" name="seq" value=(seq);
             fieldset.choices data-closes=(ends) disabled[now >= ends] {
@@ -389,12 +412,29 @@ fn answer_form(
                     }
                 }
             }
+            (worth(pick_points, started, ends, now))
             p.status {
                 span.unpicked { "pick an answer" }
-                span.picked { "you can change your answer until the time runs out" }
+                span.picked { "you can change your answer until the time runs out; the speed bonus then counts from the new pick" }
                 span.expired { "time's up" }
                 span.notice {}
             }
+        }
+    }
+}
+
+/// What a right answer is worth: counting down with the clock until you
+/// pick, then fixed at what your pick earns if it's right. clock.js keeps
+/// it running with the same formula as `game::points`.
+fn worth(pick_points: Option<u64>, started: u64, ends: u64, now: u64) -> Markup {
+    let shown = pick_points.unwrap_or_else(|| points(started, ends, now));
+    html! {
+        p.worth data-started=(started) data-ends=(ends) data-base=(BASE_POINTS)
+            data-speed=(SPEED_POINTS) data-picked=[pick_points] {
+            span.value { "+" (shown) }
+            span.live { "for a right answer now" }
+            span.locked { "if your pick is right" }
+            span.rule { (BASE_POINTS) " for right + up to " (SPEED_POINTS) " for speed" }
         }
     }
 }
@@ -426,17 +466,26 @@ mod tests {
         Game::new(Settings::default(), vec![question], 1_000_000)
     }
 
+    const URLS: super::Urls = super::Urls {
+        page: "/",
+        spectate: "/spectate",
+        qr: "/qr.svg",
+        events: "/api/events",
+        spectate_events: "/api/events/spectate",
+        answer: "/api/answer",
+    };
+
     #[test]
     fn open_question_page_does_not_contain_the_answer() {
         let mut g = game();
         let (id, _) = g.join(None, 1_000_000).unwrap();
-        let page = super::page(&g.view(id, 1_000_000), "/api/events").into_string();
+        let page = super::page(&g.view(id, 1_000_000), &URLS, "v").into_string();
         assert!(page.contains("Which one?"));
         assert!(!page.contains("secret"), "explanation leaked");
         assert!(!page.contains("correct"), "correct choice marked");
 
         g.tick(g.deadline());
-        let reveal = super::game(&g.view(id, g.deadline())).into_string();
+        let reveal = super::game(&g.view(id, g.deadline()), &URLS).into_string();
         assert!(reveal.contains("secret"));
         let correct = reveal.find(r#"class="choice revealed correct""#).unwrap();
         let row = reveal[correct..].split("</div>").next().unwrap();
@@ -452,7 +501,7 @@ mod tests {
             _ => unreachable!(),
         };
         g.answer(id, seq, 1, 1_000_001).unwrap();
-        let page = super::page(&g.view(id, 1_000_002), "/api/events").into_string();
+        let page = super::page(&g.view(id, 1_000_002), &URLS, "v").into_string();
         assert!(page.contains(r#"value="1" checked"#), "{page}");
         assert!(!page.contains(r#"value="0" checked"#));
     }

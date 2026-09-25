@@ -2,12 +2,17 @@
 //! player carrying HTML fragments of their view, and one form endpoint to
 //! submit an answer.
 //!
+//! There are two independent games ("rooms"): the normal quiz at `/`, and a
+//! fast one at `/fast` that closes each question as soon as everyone online
+//! has answered. Each has its own players, clock, spectator screen and
+//! cookie; the stylesheet, scripts and break slides are shared.
+//!
 //! Players are identified by an opaque random token in an HttpOnly cookie,
 //! issued on the first page load or event stream without a known one.
 
 use crate::{
     game::{AnswerError, Game, PlayerId, Tally},
-    html,
+    html::{self, Urls},
     slides::{self, Library, Slide},
 };
 use axum::{
@@ -29,14 +34,31 @@ use std::{
 };
 use tokio::{net::TcpListener, sync::watch};
 
-const COOKIE: &str = "nixcon_quiz";
 /// Long enough to cover a whole conference.
 const COOKIE_MAX_AGE: u32 = 14 * 24 * 60 * 60;
 
+/// The normal quiz. Event streams stay under `/api/events` so the proxy
+/// config for unbuffered streams covers both rooms.
+const NORMAL: Urls = Urls {
+    page: "/",
+    spectate: "/spectate",
+    qr: "/qr.svg",
+    events: "/api/events",
+    spectate_events: "/api/events/spectate",
+    answer: "/api/answer",
+};
+
+const FAST: Urls = Urls {
+    page: "/fast",
+    spectate: "/fast/spectate",
+    qr: "/fast/qr.svg",
+    events: "/api/events/fast",
+    spectate_events: "/api/events/fast/spectate",
+    answer: "/api/answer/fast",
+};
+
+/// What the rooms share.
 struct App {
-    game: Mutex<Game>,
-    /// Bumped whenever the phase changes; every event stream re-renders.
-    changes: watch::Sender<u64>,
     /// Random per process, so versions from before a restart never match.
     boot: u64,
     /// Where players join, for the QR code on the spectator screen.
@@ -52,13 +74,40 @@ struct Slides {
     shown: Option<Arc<Slide>>,
 }
 
-impl App {
+/// One game and where it lives.
+struct Room {
+    game: Mutex<Game>,
+    /// Bumped whenever the phase changes; every event stream re-renders.
+    changes: watch::Sender<u64>,
+    urls: Urls,
+    /// A cookie per room, so playing both keeps both players.
+    cookie: &'static str,
+}
+
+impl Room {
     fn game(&self) -> std::sync::MutexGuard<'_, Game> {
         // A panic while holding the lock leaves the game in whatever state it
         // reached; carrying on beats taking the whole quiz down mid-talk.
         self.game.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// Moves the game along if it's due, and tells every stream. Called with
+    /// the game locked, so versions always match what was rendered.
+    fn advance(&self, game: &mut Game, now: u64) {
+        if game.tick(now) {
+            self.changes.send_modify(|n| *n += 1);
+        }
+    }
+}
+
+/// A room's handlers need the room and what the rooms share.
+#[derive(Clone)]
+struct At {
+    app: Arc<App>,
+    room: Arc<Room>,
+}
+
+impl App {
     /// Names the rendered state: which process, and how many phase changes.
     fn version(&self, changes: u64) -> String {
         format!("{:x}-{changes}", self.boot)
@@ -72,54 +121,83 @@ pub fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// `public_url` is the address shown to the livestream audience; without it
-/// the spectator screen uses the host it was loaded from. `slides` are shown
-/// next to the game on that screen, each for the given time.
+/// `normal` is played at `/`, `fast` at `/fast`. `public_url` is the address
+/// shown to the livestream audience; without it the spectator screen uses
+/// the host it was loaded from. `slides` are shown next to the game on that
+/// screen, each for the given time.
 pub async fn serve(
     listener: TcpListener,
-    game: Game,
+    normal: Game,
+    fast: Game,
     public_url: Option<String>,
     slides: Option<(Library, Duration)>,
 ) -> std::io::Result<()> {
     let app = Arc::new(App {
-        game: Mutex::new(game),
-        changes: watch::Sender::new(0),
         boot: rand::random(),
         public_url,
         slides: slides
             .is_some()
             .then(|| watch::Sender::new(Slides::default())),
     });
-    tokio::spawn(run_clock(app.clone()));
     if let Some((library, every)) = slides {
         tokio::spawn(run_slides(app.clone(), library, every));
     }
-    let router = Router::new()
-        .route("/", get(index))
-        .route("/spectate", get(spectate))
+    let mut router = Router::new()
         .route("/clock.js", get(clock))
         .route("/style.css", get(style))
         .route("/vendor/{file}", get(vendor))
         .route("/slides/{file}", get(slide))
-        .route("/api/events", get(events))
-        .route("/api/events/spectate", get(spectate_events))
-        .route("/api/answer", post(answer))
-        .with_state(app);
+        .with_state(app.clone());
+    for (game, urls, cookie) in [
+        (normal, NORMAL, "nixcon_quiz"),
+        (fast, FAST, "nixcon_quiz_fast"),
+    ] {
+        let room = Arc::new(Room {
+            game: Mutex::new(game),
+            changes: watch::Sender::new(0),
+            urls,
+            cookie,
+        });
+        tokio::spawn(run_clock(room.clone()));
+        let at = At {
+            app: app.clone(),
+            room: room.clone(),
+        };
+        router = router.merge(
+            Router::new()
+                .route(room.urls.page, get(index))
+                .route(room.urls.spectate, get(spectate))
+                .route(room.urls.qr, get(qr))
+                .route(room.urls.events, get(events))
+                .route(room.urls.spectate_events, get(spectate_events))
+                .route(room.urls.answer, post(answer))
+                .with_state(at),
+        );
+    }
     axum::serve(listener, router).await
 }
 
-/// Moves the game along at each deadline and wakes every stream.
-async fn run_clock(app: Arc<App>) {
+/// Moves the game along at each deadline and wakes every stream. Also wakes
+/// on every phase change, since a fast room can close a question early and
+/// bring the next deadline forward.
+async fn run_clock(room: Arc<Room>) {
+    let mut changes = room.changes.subscribe();
     loop {
         let deadline = {
-            let mut game = app.game();
-            if game.tick(now_ms()) {
-                app.changes.send_modify(|n| *n += 1);
-            }
+            let mut game = room.game();
+            room.advance(&mut game, now_ms());
             game.deadline()
         };
+        changes.borrow_and_update();
         let wait = deadline.saturating_sub(now_ms()).max(1);
-        tokio::time::sleep(Duration::from_millis(wait)).await;
+        tokio::select! {
+            () = tokio::time::sleep(Duration::from_millis(wait)) => {}
+            changed = changes.changed() => {
+                if changed.is_err() {
+                    return;
+                }
+            }
+        }
     }
 }
 
@@ -231,9 +309,9 @@ async fn slide(State(app): State<Arc<App>>, Path(file): Path<String>) -> Respons
     )
 }
 
-fn set_cookie(response: &mut Response, token: &str) {
+fn set_cookie(response: &mut Response, name: &str, token: &str) {
     let cookie =
-        format!("{COOKIE}={token}; Path=/; Max-Age={COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict");
+        format!("{name}={token}; Path=/; Max-Age={COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict");
     response.headers_mut().insert(
         header::SET_COOKIE,
         HeaderValue::from_str(&cookie).expect("hex token"),
@@ -256,41 +334,49 @@ fn html_response(page: String) -> Response {
         .into_response()
 }
 
-async fn index(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+async fn index(State(At { app, room }): State<At>, headers: HeaderMap) -> Response {
     let now = now_ms();
     let (page, new_token) = {
-        let mut game = app.game();
-        let Some((id, new_token)) = game.join(token(&headers), now) else {
+        let mut game = room.game();
+        let Some((id, new_token)) = game.join(token(&headers, room.cookie), now) else {
             return full();
         };
         // The changes counter is only bumped with the game locked, so this
         // version matches the view exactly.
-        let events = format!("/api/events?seen={}", app.version(*app.changes.borrow()));
-        let page = html::page(&game.view(id, now), &events).into_string();
+        let seen = app.version(*room.changes.borrow());
+        let page = html::page(&game.view(id, now), &room.urls, &seen).into_string();
         (page, new_token)
     };
     let mut response = html_response(page);
     if let Some(token) = new_token {
-        set_cookie(&mut response, &token);
+        set_cookie(&mut response, room.cookie, &token);
     }
     response
 }
 
-/// The livestream screen. Watching doesn't make you a player: no cookie, and
-/// it doesn't count as online.
-async fn spectate(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
-    let join = app.public_url.clone().unwrap_or_else(|| {
+/// Where players join the room: under the public URL, or the host this
+/// request came to.
+fn join_url(app: &App, room: &Room, headers: &HeaderMap) -> String {
+    let base = app.public_url.clone().unwrap_or_else(|| {
         let host = headers
             .get(header::HOST)
             .and_then(|h| h.to_str().ok())
             .unwrap_or("localhost");
         format!("http://{host}/")
     });
+    format!("{}{}", base.trim_end_matches('/'), room.urls.page)
+}
+
+/// The livestream screen. Watching doesn't make you a player: no cookie, and
+/// it doesn't count as online.
+async fn spectate(State(At { app, room }): State<At>, headers: HeaderMap) -> Response {
+    let join = join_url(&app, &room, &headers);
     let slide = app.slides.as_ref().map(|s| s.borrow().shown.clone());
-    let game = app.game();
+    let game = room.game();
     let page = html::spectate_page(
         &game.spectate(now_ms()),
         game.tally(),
+        &room.urls,
         &join,
         slide.as_ref().map(Option::as_deref),
     )
@@ -298,7 +384,15 @@ async fn spectate(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     html_response(page)
 }
 
-fn token(headers: &HeaderMap) -> Option<&str> {
+/// The spectator screen's QR code, as an image of its own.
+async fn qr(State(At { app, room }): State<At>, headers: HeaderMap) -> Response {
+    match html::qr_svg(&join_url(&app, &room, &headers)) {
+        Some(svg) => static_file("image/svg+xml", "no-cache", svg),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn token<'a>(headers: &'a HeaderMap, cookie: &str) -> Option<&'a str> {
     headers
         .get_all(header::COOKIE)
         .iter()
@@ -306,19 +400,23 @@ fn token(headers: &HeaderMap) -> Option<&str> {
         .flat_map(|v| v.split(';'))
         .find_map(|pair| {
             let (name, value) = pair.trim().split_once('=')?;
-            (name == COOKIE).then_some(value)
+            (name == cookie).then_some(value)
         })
 }
 
 /// Counts a player as online for as long as their stream lives.
 struct Connection {
-    app: Arc<App>,
+    room: Arc<Room>,
     id: PlayerId,
 }
 
 impl Drop for Connection {
     fn drop(&mut self) {
-        self.app.game().disconnect(self.id, now_ms());
+        let now = now_ms();
+        let mut game = self.room.game();
+        game.disconnect(self.id, now);
+        // In a fast room the last one who hadn't answered may just have left.
+        self.room.advance(&mut game, now);
     }
 }
 
@@ -329,14 +427,14 @@ struct EventsQuery {
 }
 
 async fn events(
-    State(app): State<Arc<App>>,
+    State(At { app, room }): State<At>,
     Query(query): Query<EventsQuery>,
     headers: HeaderMap,
 ) -> Response {
     let now = now_ms();
     let joined = {
-        let mut game = app.game();
-        let joined = game.join(token(&headers), now);
+        let mut game = room.game();
+        let joined = game.join(token(&headers, room.cookie), now);
         if let Some((id, _)) = joined {
             game.connect(id, now);
         }
@@ -346,10 +444,10 @@ async fn events(
         return full();
     };
     let conn = Connection {
-        app: app.clone(),
+        room: room.clone(),
         id,
     };
-    let changes = app.changes.subscribe();
+    let changes = room.changes.subscribe();
     // Skip the first event when the page already shows the current state:
     // re-rendering it could undo a pick whose request is still in flight.
     // After a phase change or a reconnect to a restarted server the versions
@@ -362,7 +460,10 @@ async fn events(
             if !first && changes.changed().await.is_err() {
                 return None;
             }
-            let fragment = html::game(&conn.app.game().view(conn.id, now_ms())).into_string();
+            let fragment = {
+                let game = conn.room.game();
+                html::game(&game.view(conn.id, now_ms()), &conn.room.urls).into_string()
+            };
             Some((
                 Ok::<_, Infallible>(Event::default().data(fragment)),
                 (conn, changes, false),
@@ -379,7 +480,7 @@ async fn events(
     // The page load normally issued the cookie already; this covers a
     // server restart while the page stays open.
     if let Some(token) = new_token {
-        set_cookie(&mut response, &token);
+        set_cookie(&mut response, room.cookie, &token);
     }
     response
 }
@@ -390,8 +491,8 @@ const TALLY_EVERY: Duration = Duration::from_millis(500);
 /// The spectator screen's stream: the whole view on every phase change, in
 /// between a `tally` event whenever the number of answers or players
 /// changes, and a `slide` event with each new break slide.
-async fn spectate_events(State(app): State<Arc<App>>) -> Response {
-    let changes = app.changes.subscribe();
+async fn spectate_events(State(At { app, room }): State<At>) -> Response {
+    let changes = room.changes.subscribe();
     let slides = app.slides.as_ref().map(|s| {
         let mut slides = s.subscribe();
         // Start with the current slide: the stream may be a reconnect.
@@ -399,12 +500,12 @@ async fn spectate_events(State(app): State<Arc<App>>) -> Response {
         slides
     });
     let updates = stream::unfold(
-        (app, changes, slides, None::<Tally>),
-        |(app, mut changes, mut slides, mut shown)| async move {
+        (room, changes, slides, None::<Tally>),
+        |(room, mut changes, mut slides, mut shown)| async move {
             loop {
                 let Some(last) = shown else {
                     let (fragment, tally) = {
-                        let game = app.game();
+                        let game = room.game();
                         let view = game.spectate(now_ms());
                         (
                             html::spectate_game(&view, game.tally()).into_string(),
@@ -414,7 +515,7 @@ async fn spectate_events(State(app): State<Arc<App>>) -> Response {
                     let event = Event::default().data(fragment);
                     return Some((
                         Ok::<_, Infallible>(event),
-                        (app, changes, slides, Some(tally)),
+                        (room, changes, slides, Some(tally)),
                     ));
                 };
                 tokio::select! {
@@ -429,17 +530,17 @@ async fn spectate_events(State(app): State<Arc<App>>) -> Response {
                             .map(|s| html::slide(s.borrow_and_update().shown.as_deref()).into_string())
                             .unwrap_or_default();
                         let event = Event::default().event("slide").data(fragment);
-                        return Some((Ok(event), (app, changes, slides, shown)));
+                        return Some((Ok(event), (room, changes, slides, shown)));
                     }
                     () = tokio::time::sleep(TALLY_EVERY) => {
                         let (tally, text) = {
-                            let game = app.game();
+                            let game = room.game();
                             let tally = game.tally();
                             (tally, html::tally_text(tally, &game.spectate(0).phase))
                         };
                         if tally != last {
                             let event = Event::default().event("tally").data(text);
-                            return Some((Ok(event), (app, changes, slides, Some(tally))));
+                            return Some((Ok(event), (room, changes, slides, Some(tally))));
                         }
                     }
                 }
@@ -463,16 +564,21 @@ struct AnswerRequest {
 }
 
 async fn answer(
-    State(app): State<Arc<App>>,
+    State(At { room, .. }): State<At>,
     headers: HeaderMap,
     Form(request): Form<AnswerRequest>,
 ) -> Response {
-    let mut game = app.game();
-    let Some(id) = token(&headers).and_then(|t| game.player_for(t)) else {
+    let now = now_ms();
+    let mut game = room.game();
+    let Some(id) = token(&headers, room.cookie).and_then(|t| game.player_for(t)) else {
         return (StatusCode::UNAUTHORIZED, "unknown player").into_response();
     };
-    match game.answer(id, request.seq, request.choice, now_ms()) {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+    let result = game.answer(id, request.seq, request.choice, now);
+    // In a fast room this may have been the last answer missing.
+    room.advance(&mut game, now);
+    match result {
+        // What the pick earns if it's right, so the page can show it.
+        Ok(points) => (StatusCode::NO_CONTENT, [("x-points", points.to_string())]).into_response(),
         Err(AnswerError::Closed) => (StatusCode::CONFLICT, "question closed").into_response(),
         Err(AnswerError::InvalidChoice) => {
             (StatusCode::BAD_REQUEST, "no such choice").into_response()

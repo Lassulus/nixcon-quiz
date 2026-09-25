@@ -237,6 +237,8 @@ main {
   font-weight: 600;
   line-height: 1.3;
   text-wrap: balance;
+  /* Long option paths have no spaces to break at. */
+  overflow-wrap: anywhere;
 }
 
 /* One choice per row, on any screen; only the spectator screen lays them
@@ -280,8 +282,10 @@ main {
 
 .text {
   flex: 1;
+  min-width: 0;
   align-self: center;
   padding: 0.65rem 0.85rem;
+  overflow-wrap: anywhere;
   z-index: 1;
 }
 
@@ -358,6 +362,44 @@ label.choice:has(:checked) {
 
 .notice {
   color: var(--red);
+}
+
+/* What a right answer is worth: a pixel number counting down with the
+   clock, then the fixed value of your pick, and how it's made up. */
+.worth {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.worth .value {
+  color: var(--heading);
+  font-family: var(--pixel-font);
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.worth[data-picked] .value {
+  color: var(--accent);
+}
+
+.worth[data-picked] .live,
+.worth:not([data-picked]) .locked {
+  display: none;
+}
+
+.worth .rule {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+}
+
+/* Time's up without a pick: nothing left to win. */
+#answer:has(.choices:disabled) .worth:not([data-picked]) {
+  display: none;
 }
 
 .countdown {
@@ -479,6 +521,7 @@ label.choice:has(:checked) {
   clip-path: var(--notch);
   color: #fff;
   font-size: 0.92rem;
+  overflow-wrap: anywhere;
 }
 
 .explanation::before {
@@ -608,6 +651,18 @@ footer {
 
   body:not(.spectate) .explanation {
     font-size: 1.1rem;
+  }
+
+  body:not(.spectate) .worth {
+    font-size: 1rem;
+  }
+
+  body:not(.spectate) .worth .value {
+    font-size: 1.6rem;
+  }
+
+  body:not(.spectate) .worth .rule {
+    font-size: 0.9rem;
   }
 }
 
@@ -949,18 +1004,12 @@ html:has(body.spectate) {
   font-weight: 600;
 }
 
+/* An image with its own colours, so page recolouring can't break it. */
 .qr {
   flex: none;
   height: 100%;
   width: auto;
   aspect-ratio: 1;
   border: var(--px) solid var(--ink);
-}
-
-.qr rect {
-  fill: #fff;
-}
-
-.qr path {
-  fill: var(--ink);
+  background: #fff;
 }

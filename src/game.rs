@@ -13,9 +13,18 @@ use std::collections::{HashMap, HashSet};
 pub type PlayerId = u64;
 
 /// Points for a correct answer given at the last moment.
-const BASE_POINTS: u64 = 500;
+pub const BASE_POINTS: u64 = 500;
 /// Extra points for a correct answer, scaled by the time left on the clock.
-const SPEED_POINTS: u64 = 500;
+pub const SPEED_POINTS: u64 = 500;
+
+/// What a correct answer given at `at` earns on a question open from
+/// `started` to `ends`. clock.js counts down the same formula.
+pub fn points(started: u64, ends: u64, at: u64) -> u64 {
+    let window = ends.saturating_sub(started).max(1);
+    let left = ends.saturating_sub(at).min(window);
+    BASE_POINTS + SPEED_POINTS * left / window
+}
+
 const LEADERBOARD_SIZE: usize = 10;
 /// Upper bound on remembered players; anyone past it is turned away.
 const MAX_PLAYERS: usize = 20_000;
@@ -36,6 +45,8 @@ pub struct Settings {
     pub round_questions: u32,
     /// How long the leaderboard is shown before the next round starts.
     pub leaderboard_seconds: u64,
+    /// Close a question as soon as every online player has answered.
+    pub fast: bool,
 }
 
 impl Default for Settings {
@@ -46,6 +57,7 @@ impl Default for Settings {
             reveal_seconds: 8,
             round_questions: 10,
             leaderboard_seconds: 30,
+            fast: false,
         }
     }
 }
@@ -119,6 +131,9 @@ pub enum PhaseView<'a> {
         started: u64,
         ends: u64,
         answered: Option<usize>,
+        /// What the player's pick earns if it is right; says nothing about
+        /// whether it is.
+        pick_points: Option<u64>,
     },
     Reveal {
         number: u32,
@@ -198,10 +213,14 @@ impl Game {
         }
     }
 
-    /// Advance past the current phase if its time is up. Returns whether
+    /// Advance past the current phase if its time is up, or, in fast mode,
+    /// close the question once everyone online has answered. Returns whether
     /// anything changed, i.e. whether clients need a fresh view.
     pub fn tick(&mut self, now: u64) -> bool {
-        if now < self.deadline() {
+        let everyone = self.settings.fast
+            && matches!(self.phase, Phase::Question { .. })
+            && self.everyone_answered();
+        if now < self.deadline() && !everyone {
             return false;
         }
         match self.phase {
@@ -218,6 +237,17 @@ impl Game {
             Phase::Leaderboard { .. } => self.new_round(now),
         }
         true
+    }
+
+    /// Whether every player with the page open has answered; never while
+    /// nobody is online.
+    fn everyone_answered(&self) -> bool {
+        self.online > 0
+            && self
+                .players
+                .iter()
+                .filter(|(_, p)| p.connections > 0)
+                .all(|(id, _)| self.answers.contains_key(id))
     }
 
     fn draw(&mut self) -> usize {
@@ -252,14 +282,12 @@ impl Game {
         };
         let question = &self.questions[self.question];
         let mut counts = vec![0; question.choices.len()];
-        let window = (ends - started).max(1);
         for (id, answer) in &self.answers {
             counts[answer.choice] += 1;
             if answer.choice != question.correct {
                 continue;
             }
-            let left = ends.saturating_sub(answer.at).min(window);
-            let points = BASE_POINTS + SPEED_POINTS * left / window;
+            let points = points(started, ends, answer.at);
             if let Some(player) = self.players.get_mut(id) {
                 player.score += points;
                 self.gained.insert(*id, points);
@@ -381,15 +409,16 @@ impl Game {
     /// Record or change a player's answer. The last answer before the
     /// deadline counts, and its speed bonus is measured from when it was
     /// given: switching late costs the bonus of the early pick. Sending the
-    /// same choice again changes nothing.
+    /// same choice again changes nothing. Returns what the answer earns if it
+    /// is right.
     pub fn answer(
         &mut self,
         id: PlayerId,
         seq: u64,
         choice: usize,
         now: u64,
-    ) -> Result<(), AnswerError> {
-        let Phase::Question { ends, .. } = self.phase else {
+    ) -> Result<u64, AnswerError> {
+        let Phase::Question { started, ends } = self.phase else {
             return Err(AnswerError::Closed);
         };
         if seq != self.seq || now >= ends {
@@ -402,10 +431,16 @@ impl Game {
             return Err(AnswerError::Closed);
         };
         player.last_seen = now;
-        if self.answers.get(&id).is_none_or(|a| a.choice != choice) {
-            self.answers.insert(id, Answer { choice, at: now });
-        }
-        Ok(())
+        let answer = self
+            .answers
+            .entry(id)
+            .and_modify(|a| {
+                if a.choice != choice {
+                    *a = Answer { choice, at: now };
+                }
+            })
+            .or_insert(Answer { choice, at: now });
+        Ok(points(started, ends, answer.at))
     }
 
     /// Everything one player's screen needs.
@@ -449,7 +484,8 @@ impl Game {
 
     fn phase_view(&self, id: Option<PlayerId>) -> PhaseView<'_> {
         let question = self.current();
-        let answered = id.and_then(|id| self.answers.get(&id)).map(|a| a.choice);
+        let answer = id.and_then(|id| self.answers.get(&id));
+        let answered = answer.map(|a| a.choice);
         match &self.phase {
             Phase::Question { started, ends } => PhaseView::Question {
                 seq: self.seq,
@@ -460,6 +496,7 @@ impl Game {
                 started: *started,
                 ends: *ends,
                 answered,
+                pick_points: answer.map(|a| points(*started, *ends, a.at)),
             },
             Phase::Reveal { ends, counts } => PhaseView::Reveal {
                 number: self.number,
@@ -592,12 +629,13 @@ mod tests {
             Err(AnswerError::Closed),
             "at the deadline"
         );
-        // Wrong first, right halfway through: scored as a halfway answer.
-        g.answer(switcher, seq, 0, 1_000_000).unwrap();
-        g.answer(switcher, seq, 1, 1_005_000).unwrap();
+        // Wrong first, right halfway through: scored as a halfway answer,
+        // and each pick reports what it will earn if it is right.
+        assert_eq!(g.answer(switcher, seq, 0, 1_000_000), Ok(1000));
+        assert_eq!(g.answer(switcher, seq, 1, 1_005_000), Ok(750));
         // Re-sending the same choice keeps the original, faster time.
-        g.answer(repeater, seq, 1, 1_000_000).unwrap();
-        g.answer(repeater, seq, 1, 1_009_000).unwrap();
+        assert_eq!(g.answer(repeater, seq, 1, 1_000_000), Ok(1000));
+        assert_eq!(g.answer(repeater, seq, 1, 1_009_000), Ok(1000));
 
         g.tick(1_010_000);
         assert_eq!(result(&g, switcher), (Some(1), Some(750)));
@@ -699,5 +737,29 @@ mod tests {
             panic!("not revealing")
         };
         assert_eq!((counts, answered, gained), (&[1, 0, 0][..], None, None));
+    }
+
+    #[test]
+    fn fast_mode_closes_the_question_once_everyone_online_answered() {
+        let mut g = game();
+        g.settings.fast = true;
+        let (a, b, away) = (player(&mut g), player(&mut g), player(&mut g));
+        g.connect(a, 1_000_000);
+        g.connect(b, 1_000_000);
+        // `away` never opened the page, so nobody waits for them.
+        let seq = g.seq;
+        g.answer(a, seq, 1, 1_001_000).unwrap();
+        assert!(!g.tick(1_001_000), "b is online and hasn't answered");
+
+        // Closing one of two tabs doesn't make b go away.
+        g.connect(b, 1_001_500);
+        g.disconnect(b, 1_001_500);
+        assert!(!g.tick(1_001_500), "b still has the page open once");
+        g.answer(b, seq, 1, 1_002_000).unwrap();
+        assert!(g.tick(1_002_000), "closes 8s early");
+        // Speed still counts against the full 10s: 2s in leaves 80% of it.
+        assert_eq!(result(&g, b), (Some(1), Some(900)));
+        assert_eq!(result(&g, away), (None, None));
+        assert_eq!(g.deadline(), 1_002_000 + 5_000, "the reveal starts now");
     }
 }

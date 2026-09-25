@@ -121,9 +121,17 @@ fn main() -> ExitCode {
                 Duration::from_secs(slide_seconds),
             )
         });
+        // The same quiz at /fast, moving on as soon as everyone has answered.
+        let fast = game::Settings {
+            title: format!("{} (fast)", settings.title),
+            fast: true,
+            ..settings.clone()
+        };
+        let now = web::now_ms();
         web::serve(
             listener,
-            game::Game::new(settings, questions, web::now_ms()),
+            game::Game::new(settings, questions.clone(), now),
+            game::Game::new(fast, questions, now),
             public_url,
             slides,
         )
