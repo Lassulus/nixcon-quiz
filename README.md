@@ -148,9 +148,9 @@ The look follows [2026.nixcon.org](https://2026.nixcon.org): sky blue with
 faded pixel clouds, a dark bar with the NixCon eagle, Press Start 2P for
 labels, letters and numbers, and boxes with black pixel borders and notched
 corners. Questions and answers stay in IBM Plex Mono so they read easily, and
-are labelled like store paths. Your pick is blue, the right answer gold, and
-red is only for what went wrong. Fonts and images are vendored under
-`static/vendor/`.
+are labelled like store paths. Your pick is blue, the right answer green, your
+row on the leaderboard gold, and red is only for what went wrong. Fonts and
+images are vendored under `static/vendor/`.
 
 ## Livestream
 

@@ -1,6 +1,6 @@
 /* NixCon 2026 in pixels, like 2026.nixcon.org: sky blue with clouds, a dark
    bar on top, Press Start 2P for the game's labels and numbers, boxes with
-   black pixel borders and notched corners, gold for the right answer and red
+   black pixel borders and notched corners, green for the right answer and red
    for what went wrong. Questions and answers stay in a readable monospace. */
 
 @font-face {
@@ -72,6 +72,7 @@
   --accent: #5e6cc7;
   --heading: #065d9e;
   --gold: #ffd447;
+  --green: #6fd35a;
   --panel: #38667f;
   --panel-light: #64879b;
   --red: #e70000;
@@ -416,7 +417,7 @@ label.choice:has(:checked) {
 
 .revealed.correct {
   color: var(--ink);
-  background: var(--gold);
+  background: var(--green);
 }
 
 .revealed.wrong {
