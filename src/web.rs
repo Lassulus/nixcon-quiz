@@ -2,10 +2,11 @@
 //! player carrying HTML fragments of their view, and one form endpoint to
 //! submit an answer.
 //!
-//! There are two independent games ("rooms"): the normal quiz at `/`, and a
-//! fast one at `/fast` that closes each question as soon as everyone online
-//! has answered. Each has its own players, clock, spectator screen and
-//! cookie; the stylesheet, scripts and break slides are shared.
+//! There are two independent games ("rooms"): the default one at `/`, which
+//! closes each question as soon as everyone online has answered, and a slow
+//! one at `/slow` that always runs the full clock. Each has its own players,
+//! clock, spectator screen and cookie; the stylesheet, scripts and break
+//! slides are shared.
 //!
 //! Players are identified by an opaque random token in an HttpOnly cookie,
 //! issued on the first page load or event stream without a known one.
@@ -20,7 +21,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{
-        IntoResponse, Response,
+        IntoResponse, Redirect, Response,
         sse::{Event, KeepAlive, Sse},
     },
     routing::{get, post},
@@ -37,9 +38,9 @@ use tokio::{net::TcpListener, sync::watch};
 /// Long enough to cover a whole conference.
 const COOKIE_MAX_AGE: u32 = 14 * 24 * 60 * 60;
 
-/// The normal quiz. Event streams stay under `/api/events` so the proxy
+/// The default quiz. Event streams stay under `/api/events` so the proxy
 /// config for unbuffered streams covers both rooms.
-const NORMAL: Urls = Urls {
+const DEFAULT: Urls = Urls {
     page: "/",
     spectate: "/spectate",
     qr: "/qr.svg",
@@ -48,13 +49,13 @@ const NORMAL: Urls = Urls {
     answer: "/api/answer",
 };
 
-const FAST: Urls = Urls {
-    page: "/fast",
-    spectate: "/fast/spectate",
-    qr: "/fast/qr.svg",
-    events: "/api/events/fast",
-    spectate_events: "/api/events/fast/spectate",
-    answer: "/api/answer/fast",
+const SLOW: Urls = Urls {
+    page: "/slow",
+    spectate: "/slow/spectate",
+    qr: "/slow/qr.svg",
+    events: "/api/events/slow",
+    spectate_events: "/api/events/slow/spectate",
+    answer: "/api/answer/slow",
 };
 
 /// What the rooms share.
@@ -121,14 +122,14 @@ pub fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// `normal` is played at `/`, `fast` at `/fast`. `public_url` is the address
+/// `default` is played at `/`, `slow` at `/slow`. `public_url` is the address
 /// shown to the livestream audience; without it the spectator screen uses
 /// the host it was loaded from. `slides` are shown next to the game on that
 /// screen, each for the given time.
 pub async fn serve(
     listener: TcpListener,
-    normal: Game,
-    fast: Game,
+    default: Game,
+    slow: Game,
     public_url: Option<String>,
     slides: Option<(Library, Duration)>,
 ) -> std::io::Result<()> {
@@ -147,10 +148,16 @@ pub async fn serve(
         .route("/style.css", get(style))
         .route("/vendor/{file}", get(vendor))
         .route("/slides/{file}", get(slide))
+        // The fast game used to live here; old links and screens follow it.
+        .route("/fast", get(|| async { Redirect::to(DEFAULT.page) }))
+        .route(
+            "/fast/spectate",
+            get(|| async { Redirect::to(DEFAULT.spectate) }),
+        )
         .with_state(app.clone());
     for (game, urls, cookie) in [
-        (normal, NORMAL, "nixcon_quiz"),
-        (fast, FAST, "nixcon_quiz_fast"),
+        (default, DEFAULT, "nixcon_quiz"),
+        (slow, SLOW, "nixcon_quiz_slow"),
     ] {
         let room = Arc::new(Room {
             game: Mutex::new(game),

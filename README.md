@@ -107,17 +107,19 @@ over sessions.
 - State lives in memory. Restarting the server starts a fresh game and gives
   everyone new names.
 
-### Fast mode
+### Fast and slow
 
-`/fast` is a second, independent game with the same questions and timings:
-its own players, scores, order of questions and spectator screen
-(`/fast/spectate`). The difference: a question closes as soon as every
-player who has the page open has answered, and the reveal starts right away
-instead of waiting out the clock. Speed bonuses still count against the full
-question time, so an early close doesn't change anyone's points. Players
-who closed the page aren't waited for; a question nobody answers runs its
-full time. The fast game uses its own cookie, so playing both keeps both
-names and scores.
+The game at `/` is fast: a question closes as soon as every player who has
+the page open has answered, and the reveal starts right away instead of
+waiting out the clock. Speed bonuses still count against the full question
+time, so an early close doesn't change anyone's points. Players who closed
+the page aren't waited for; a question nobody answers runs its full time.
+
+`/slow` is a second, independent game with the same questions and timings
+that always runs the full clock: its own players, scores, order of questions
+and spectator screen (`/slow/spectate`), and its own cookie, so playing both
+keeps both names and scores. `/fast` and `/fast/spectate`, where the fast
+game first lived, redirect to `/` and `/spectate`.
 
 ## Cheating
 
@@ -159,9 +161,9 @@ runs [htmx](https://htmx.org) with its SSE extension, both vendored under
   `x-points` header saying what the pick earns if it's right (sending the
   same choice again keeps its time), `409` if the question is closed.
 
-The fast game has the same endpoints under its own paths: `/fast`,
-`/fast/spectate`, `/fast/qr.svg`, `/api/events/fast`,
-`/api/events/fast/spectate` and `POST /api/answer/fast`. Its streams stay
+The slow game has the same endpoints under its own paths: `/slow`,
+`/slow/spectate`, `/slow/qr.svg`, `/api/events/slow`,
+`/api/events/slow/spectate` and `POST /api/answer/slow`. Its streams stay
 under `/api/events`, so the proxy settings for unbuffered streams cover both.
 
 `static/clock.js` is the only hand-written script: it runs the countdowns and

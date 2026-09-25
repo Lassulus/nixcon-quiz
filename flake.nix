@@ -420,16 +420,18 @@
               )
               assert 'data-phase="question"' in out, out
 
-              # /fast is a game of its own, with its own player cookie and
+              # /slow is a game of its own, with its own player cookie and
               # a stream that nginx passes through unbuffered too.
-              page = machine.succeed("curl -sf -c /tmp/fastjar http://quiz.test/fast")
-              assert "<title>Test Quiz (fast)</title>" in page, page
-              machine.succeed("grep -q nixcon_quiz_fast /tmp/fastjar")
+              page = machine.succeed("curl -sf -c /tmp/slowjar http://quiz.test/slow")
+              assert "<title>Test Quiz (slow)</title>" in page, page
+              machine.succeed("grep -q nixcon_quiz_slow /tmp/slowjar")
               out = machine.succeed(
-                "curl -sN -b /tmp/fastjar --max-time 3 http://quiz.test/api/events/fast || true"
+                "curl -sN -b /tmp/slowjar --max-time 3 http://quiz.test/api/events/slow || true"
               )
               assert 'data-phase="question"' in out, out
-              assert 'hx-post="/api/answer/fast"' in out, out
+              assert 'hx-post="/api/answer/slow"' in out, out
+              # The fast game's old address now leads to the default one.
+              machine.succeed("curl -sf -o /dev/null -w '%{redirect_url}' http://quiz.test/fast | grep -q 'quiz.test/$'")
 
               # Slides dropped in while the quiz runs are picked up: both
               # pages of the PDF and the image take turns, served as PNGs.
