@@ -64,6 +64,7 @@ pub fn spectate_page(
                             p.label { "join the quiz" }
                             p.url { (shown.trim_end_matches('/')) }
                             p.hint { "scan the code or open the address on your phone" }
+                            (slop_warning())
                         }
                         ol.steps {
                             li { "everyone gets the same question at the same time" }
@@ -180,6 +181,7 @@ pub fn game(view: &View) -> Markup {
             }
             footer {
                 span { (view.online) " online" }
+                (slop_warning())
             }
         }
     }
@@ -226,6 +228,16 @@ pub fn spectate_game(view: &View, tally: Tally) -> Markup {
                     }
                 }
             }
+        }
+    }
+}
+
+/// The questions were written with an LLM; say so, in Nix's own words.
+fn slop_warning() -> Markup {
+    html! {
+        span.slop {
+            span.warning { "warning:" }
+            " questions are LLM-slopped, answers may be wrong"
         }
     }
 }

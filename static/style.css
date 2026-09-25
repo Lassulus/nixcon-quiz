@@ -551,12 +551,21 @@ label.choice:has(:checked) {
 
 footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 0.3rem 1rem;
   margin: 0 var(--gutter);
   padding: 0.6rem 0 0.9rem;
   border-top: 1px solid var(--rule);
   color: var(--ink-soft);
   font-size: 0.78rem;
+}
+
+/* A Nix-style warning line: the questions came out of an LLM. */
+.slop .warning {
+  margin-right: 0.5ch;
+  color: #a8228f;
+  font-weight: 600;
 }
 
 #connection {
@@ -909,6 +918,15 @@ html:has(body.spectate) {
 .join .hint {
   color: #d3e7f1;
   font-size: 0.9rem;
+}
+
+.join .slop {
+  color: #d3e7f1;
+  font-size: 0.8rem;
+}
+
+.join .slop .warning {
+  color: #ff9be6;
 }
 
 .steps {
