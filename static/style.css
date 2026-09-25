@@ -684,10 +684,11 @@ html:has(body.spectate) {
   height: 100vh;
 }
 
-/* With a break slide, the slide takes the stage with the join strip below
-   it, and the game moves into a column along the right. */
+/* With a break slide, the slide takes most of the stage with the join strip
+   below it, and the game moves into a narrow column along the right. The
+   column is as narrow as the longest questions and names allow. */
 .stage:has(#slide:not(:empty)) {
-  grid-template-columns: minmax(0, 1fr) 30rem;
+  grid-template-columns: minmax(0, 1fr) 20rem;
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "slide game"
@@ -703,7 +704,7 @@ html:has(body.spectate) {
 /* A slide in a pixel frame. */
 #slide {
   grid-area: slide;
-  padding: 1.6rem 1.6rem 0;
+  padding: 1.2rem 1.2rem 0;
 }
 
 #slide:empty {
@@ -728,112 +729,125 @@ html:has(body.spectate) {
   }
 }
 
-/* Under the slide the strip has room for a bigger code, with the steps
-   below the address. */
+/* Under the slide: code, address and how to play in one row. */
 .stage:has(#slide:not(:empty)) .join {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-content: center;
-  column-gap: 2rem;
-  row-gap: 1rem;
-  margin: 1.6rem 1.6rem 0;
-  padding: 1.2rem 1.6rem;
+  gap: 1.4rem;
+  margin: 1.2rem 1.2rem 0;
+  padding: 0.9rem 1.4rem;
   border: var(--px) solid var(--ink);
   border-bottom: none;
 }
 
 .stage:has(#slide:not(:empty)) .qr {
-  grid-row: span 2;
-  height: 10rem;
+  max-height: 9rem;
 }
 
 .stage:has(#slide:not(:empty)) .steps {
-  margin: 0;
-  padding: 1rem 0 0;
-  border-left: none;
-  border-top: 1px solid rgb(255 255 255 / 0.25);
-  font-size: 0.95rem;
-  line-height: 1.55;
+  padding-left: 1.4rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
 
-/* The game in the column: one choice per row and smaller type, sized so the
-   longest questions and explanations still fit. */
+/* The game in the column: one choice per row and small type, sized so the
+   longest questions, explanations and player names still fit. */
 .stage:has(#slide:not(:empty)) #game {
   border-left: var(--px) solid var(--ink);
   background: var(--sheet);
 }
 
+/* Title and answer count on lines of their own. */
 .stage:has(#slide:not(:empty)) header {
-  padding: 1.1rem 1.4rem 0.9rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.9rem 1.1rem 0.75rem;
+}
+
+.stage:has(#slide:not(:empty)) .logo {
+  height: 2.1rem;
 }
 
 .stage:has(#slide:not(:empty)) h1 {
-  font-size: 0.8rem;
+  font-size: 0.65rem;
+  white-space: nowrap;
 }
 
 .stage:has(#slide:not(:empty)) #tally {
-  font-size: 0.95rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .stage:has(#slide:not(:empty)) #timer {
-  height: 0.9rem;
-  margin: 0.7rem 1.4rem 0;
+  height: 0.8rem;
+  margin: 0.6rem 1.1rem 0;
 }
 
 .stage:has(#slide:not(:empty)) main {
-  padding: 0.8rem 1.4rem 0.9rem;
+  padding: 0.7rem 1.1rem 0.8rem;
 }
 
 .stage:has(#slide:not(:empty)) .label {
-  font-size: 0.75rem;
+  font-size: 0.62rem;
 }
 
 .stage:has(#slide:not(:empty)) .question {
-  margin: 0.3rem 0 0.9rem;
-  font-size: 1.4rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 1.12rem;
   line-height: 1.3;
 }
 
 .stage:has(#slide:not(:empty)) .choices {
   grid-template-columns: 1fr;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .stage:has(#slide:not(:empty)) .choice {
-  min-height: 2.8rem;
-  font-size: 1.05rem;
+  min-height: 2.3rem;
+  font-size: 0.86rem;
 }
 
 .stage:has(#slide:not(:empty)) .text {
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
 }
 
 .stage:has(#slide:not(:empty)) .letter {
-  width: 2.6rem;
+  width: 2.1rem;
+}
+
+.stage:has(#slide:not(:empty)) .countdown {
+  font-size: 0.9rem;
 }
 
 .stage:has(#slide:not(:empty)) .countdown.big {
-  font-size: 2.4rem;
+  font-size: 2rem;
 }
 
 .stage:has(#slide:not(:empty)) .explanation {
-  margin-top: 0.9rem;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.95rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
 }
 
+/* Names up to "Garbage-Collected Substituter 12" take two lines. */
 .stage:has(#slide:not(:empty)) .leaderboard {
   grid-template-rows: none;
   grid-auto-flow: row;
 }
 
 .stage:has(#slide:not(:empty)) .leaderboard li {
-  padding: 0.35rem 0.5rem;
-  font-size: 1.1rem;
+  gap: 0.5rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
 }
 
 .stage:has(#slide:not(:empty)) .leaderboard li:first-child {
-  font-size: 1.3rem;
+  font-size: 0.92rem;
+}
+
+.stage:has(#slide:not(:empty)) .rank {
+  flex: none;
+  width: 2.2rem;
 }
 
 .spectate .view {

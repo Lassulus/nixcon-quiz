@@ -194,13 +194,14 @@ The QR code points at `publicUrl` (`--public-url`), which the module sets to
 
 With `--slides DIR` (the module's `slides`) break slides — sponsor slides,
 announcements — take the stage: the slide fills most of the screen with the
-join details below it, and the game moves into a column on the right, in
-smaller type and one choice per row. Each slide stays for `--slide-seconds`
-(default 15); they go in file name order, so prefix names with numbers to
-choose it. PDF, PNG, JPEG and WebP are shown; every page of a PDF is a
-slide, rendered at 1920 pixels with poppler's `pdftoppm` (the package brings
-it along; `cargo run` needs it on `PATH`, the dev shell has it). Every slide
-is framed as 16:9; other shapes get white bars.
+join details below it, and the game moves into a narrow column on the right
+(a quarter of the width), in small type and one choice per row. Each slide
+stays for `--slide-seconds` (default 15); they go in file name order, so
+prefix names with numbers to choose it. PDF, PNG, JPEG and WebP are shown;
+every page of a PDF is a slide, rendered at 1920 pixels with poppler's
+`pdftoppm` (the package brings it along; `cargo run` needs it on `PATH`, the
+dev shell has it). Every slide is framed as 16:9; other shapes get white
+bars.
 
 The directory is scanned before every slide, so files can be dropped in,
 replaced or removed while the quiz runs; a PDF is rendered again only when it
