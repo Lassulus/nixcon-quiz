@@ -561,7 +561,7 @@ footer {
   font-size: 0.78rem;
 }
 
-/* A Nix-style warning line: the questions came out of an LLM. */
+/* A Nix-style warning line: the whole site came out of an LLM. */
 .slop .warning {
   margin-right: 0.5ch;
   color: #a8228f;

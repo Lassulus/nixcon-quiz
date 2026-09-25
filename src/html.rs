@@ -232,12 +232,13 @@ pub fn spectate_game(view: &View, tally: Tally) -> Markup {
     }
 }
 
-/// The questions were written with an LLM; say so, in Nix's own words.
+/// The whole site, questions and all, was written with an LLM; say so, in
+/// Nix's own words.
 fn slop_warning() -> Markup {
     html! {
         span.slop {
             span.warning { "warning:" }
-            " questions are LLM-slopped, answers may be wrong"
+            " this whole site is LLM-slopped, answers included"
         }
     }
 }
