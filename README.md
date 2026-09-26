@@ -143,7 +143,8 @@ runs [htmx](https://htmx.org) with its SSE extension, both vendored under
 
 - `GET /` — the page with the current view already rendered. Issues the player
   cookie on first contact.
-- `GET /spectate` — the livestream screen.
+- `GET /spectate` — the livestream screen. `GET /spectate/plain` is the same
+  screen without break slides, for streams that shouldn't carry sponsors.
 - `GET /api/events/spectate` — its stream: the whole view on every phase
   change, a `tally` event whenever the number of answers or players
   changes, and a `slide` event with the `<img>` of each new break slide.

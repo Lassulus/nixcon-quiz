@@ -23,6 +23,8 @@ const LETTERS: [char; 6] = ['A', 'B', 'C', 'D', 'E', 'F'];
 pub struct Urls {
     pub page: &'static str,
     pub spectate: &'static str,
+    /// The spectator screen without break slides.
+    pub spectate_plain: &'static str,
     pub qr: &'static str,
     pub events: &'static str,
     pub spectate_events: &'static str,
@@ -469,6 +471,7 @@ mod tests {
     const URLS: super::Urls = super::Urls {
         page: "/",
         spectate: "/spectate",
+        spectate_plain: "/spectate/plain",
         qr: "/qr.svg",
         events: "/api/events",
         spectate_events: "/api/events/spectate",

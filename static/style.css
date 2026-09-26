@@ -688,7 +688,7 @@ html:has(body.spectate) {
    below it, and the game moves into a narrow column along the right. The
    column is as narrow as the longest questions and names allow. */
 .stage:has(#slide:not(:empty)) {
-  grid-template-columns: minmax(0, 1fr) 20rem;
+  grid-template-columns: minmax(0, 1fr) 18rem;
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "slide game"
@@ -704,7 +704,7 @@ html:has(body.spectate) {
 /* A slide in a pixel frame. */
 #slide {
   grid-area: slide;
-  padding: 1.2rem 1.2rem 0;
+  padding: 0.8rem 0.8rem 0;
 }
 
 #slide:empty {
@@ -732,7 +732,7 @@ html:has(body.spectate) {
 /* Under the slide: code, address and how to play in one row. */
 .stage:has(#slide:not(:empty)) .join {
   gap: 1.4rem;
-  margin: 1.2rem 1.2rem 0;
+  margin: 0.8rem 0.8rem 0;
   padding: 0.9rem 1.4rem;
   border: var(--px) solid var(--ink);
   border-bottom: none;
@@ -748,51 +748,41 @@ html:has(body.spectate) {
   line-height: 1.6;
 }
 
-/* The game in the column: one choice per row and small type, sized so the
-   longest questions, explanations and player names still fit. */
+/* The game in the column: one choice per row, sized so the longest
+   questions, explanations and player names still fit. Every line counts, so
+   the column drops the header's logo and title (the join strip names the
+   quiz) and the store-path label. */
 .stage:has(#slide:not(:empty)) #game {
   border-left: var(--px) solid var(--ink);
   background: var(--sheet);
 }
 
-/* Title and answer count on lines of their own. */
 .stage:has(#slide:not(:empty)) header {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  padding: 0.9rem 1.1rem 0.75rem;
+  padding: 0.6rem 0.9rem 0.5rem;
 }
 
-.stage:has(#slide:not(:empty)) .logo {
-  height: 2.1rem;
-}
-
-.stage:has(#slide:not(:empty)) h1 {
-  font-size: 0.65rem;
-  white-space: nowrap;
+.stage:has(#slide:not(:empty)) .brand,
+.stage:has(#slide:not(:empty)) #game .label {
+  display: none;
 }
 
 .stage:has(#slide:not(:empty)) #tally {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   white-space: nowrap;
 }
 
 .stage:has(#slide:not(:empty)) #timer {
   height: 0.8rem;
-  margin: 0.6rem 1.1rem 0;
+  margin: 0.6rem 0.9rem 0;
 }
 
 .stage:has(#slide:not(:empty)) main {
-  padding: 0.7rem 1.1rem 0.8rem;
-}
-
-.stage:has(#slide:not(:empty)) .label {
-  font-size: 0.62rem;
+  padding: 0.7rem 0.9rem 0.8rem;
 }
 
 .stage:has(#slide:not(:empty)) .question {
-  margin: 0.25rem 0 0.75rem;
-  font-size: 1.12rem;
+  margin: 0 0 0.75rem;
+  font-size: 1.23rem;
   line-height: 1.3;
 }
 
@@ -803,51 +793,55 @@ html:has(body.spectate) {
 
 .stage:has(#slide:not(:empty)) .choice {
   min-height: 2.3rem;
-  font-size: 0.86rem;
+  font-size: 0.95rem;
 }
 
 .stage:has(#slide:not(:empty)) .text {
-  padding: 0.4rem 0.6rem;
+  padding: 0.3rem 0.55rem;
+  line-height: 1.3;
 }
 
 .stage:has(#slide:not(:empty)) .letter {
-  width: 2.1rem;
+  width: 2.3rem;
 }
 
 .stage:has(#slide:not(:empty)) .countdown {
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
+/* The timer bar shows the time too, so the number can be modest. */
 .stage:has(#slide:not(:empty)) .countdown.big {
-  font-size: 2rem;
+  font-size: 1.65rem;
 }
 
 .stage:has(#slide:not(:empty)) .explanation {
   margin-top: 0.75rem;
   padding: 0.5rem 0.7rem;
   font-size: 0.8rem;
+  line-height: 1.35;
 }
 
-/* Names up to "Garbage-Collected Substituter 12" take two lines. */
+/* Names up to "Garbage-Collected Substituter 12" take two lines; the top
+   row stands out by weight alone, since bigger type would need a third. */
 .stage:has(#slide:not(:empty)) .leaderboard {
   grid-template-rows: none;
   grid-auto-flow: row;
 }
 
 .stage:has(#slide:not(:empty)) .leaderboard li {
-  gap: 0.5rem;
-  padding: 0.3rem 0.45rem;
-  font-size: 0.8rem;
-  line-height: 1.25;
+  gap: 0.4rem;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
 }
 
 .stage:has(#slide:not(:empty)) .leaderboard li:first-child {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 .stage:has(#slide:not(:empty)) .rank {
   flex: none;
-  width: 2.2rem;
+  width: 2rem;
 }
 
 .spectate .view {
@@ -882,7 +876,7 @@ html:has(body.spectate) {
 .spectate main {
   display: flex;
   flex-direction: column;
-  padding: 1.6rem 2rem 1.2rem;
+  padding: 1.2rem 2rem 1rem;
   overflow: hidden;
 }
 
@@ -890,9 +884,11 @@ html:has(body.spectate) {
   font-size: 0.9rem;
 }
 
+/* Sized so the longest question, four long answers and the explanation all
+   fit above the join strip. */
 .spectate .question {
-  margin: 0.4rem 0 1.4rem;
-  font-size: 2.3rem;
+  margin: 0.3rem 0 1.1rem;
+  font-size: 2.02rem;
 }
 
 .spectate .choices {
@@ -901,8 +897,8 @@ html:has(body.spectate) {
 }
 
 .spectate .choice {
-  min-height: 4.2rem;
-  font-size: 1.35rem;
+  min-height: 3.7rem;
+  font-size: 1.19rem;
 }
 
 .spectate .letter {
@@ -919,8 +915,10 @@ html:has(body.spectate) {
 }
 
 .spectate .explanation {
-  margin-top: 1.2rem;
-  font-size: 1.25rem;
+  margin-top: 1rem;
+  padding: 0.7rem 0.95rem;
+  font-size: 1.1rem;
+  line-height: 1.35;
 }
 
 /* Top ten in two columns of five, filled downwards, so it fits above the

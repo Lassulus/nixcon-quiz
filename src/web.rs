@@ -43,6 +43,7 @@ const COOKIE_MAX_AGE: u32 = 14 * 24 * 60 * 60;
 const DEFAULT: Urls = Urls {
     page: "/",
     spectate: "/spectate",
+    spectate_plain: "/spectate/plain",
     qr: "/qr.svg",
     events: "/api/events",
     spectate_events: "/api/events/spectate",
@@ -52,6 +53,7 @@ const DEFAULT: Urls = Urls {
 const SLOW: Urls = Urls {
     page: "/slow",
     spectate: "/slow/spectate",
+    spectate_plain: "/slow/spectate/plain",
     qr: "/slow/qr.svg",
     events: "/api/events/slow",
     spectate_events: "/api/events/slow/spectate",
@@ -174,6 +176,7 @@ pub async fn serve(
             Router::new()
                 .route(room.urls.page, get(index))
                 .route(room.urls.spectate, get(spectate))
+                .route(room.urls.spectate_plain, get(spectate_plain))
                 .route(room.urls.qr, get(qr))
                 .route(room.urls.events, get(events))
                 .route(room.urls.spectate_events, get(spectate_events))
@@ -376,9 +379,23 @@ fn join_url(app: &App, room: &Room, headers: &HeaderMap) -> String {
 
 /// The livestream screen. Watching doesn't make you a player: no cookie, and
 /// it doesn't count as online.
-async fn spectate(State(At { app, room }): State<At>, headers: HeaderMap) -> Response {
-    let join = join_url(&app, &room, &headers);
-    let slide = app.slides.as_ref().map(|s| s.borrow().shown.clone());
+async fn spectate(State(at): State<At>, headers: HeaderMap) -> Response {
+    spectate_screen(&at, &headers, true)
+}
+
+/// The same screen without break slides, for streams that shouldn't carry
+/// sponsors.
+async fn spectate_plain(State(at): State<At>, headers: HeaderMap) -> Response {
+    spectate_screen(&at, &headers, false)
+}
+
+fn spectate_screen(At { app, room }: &At, headers: &HeaderMap, with_slides: bool) -> Response {
+    let join = join_url(app, room, headers);
+    let slide = app
+        .slides
+        .as_ref()
+        .filter(|_| with_slides)
+        .map(|s| s.borrow().shown.clone());
     let game = room.game();
     let page = html::spectate_page(
         &game.spectate(now_ms()),
